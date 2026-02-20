@@ -15938,3 +15938,11 @@ Fetching traffic for DEN...
 [OK] DEN: aircraft=115 airborne=45 ground=70
 \nDone.\n
 
+=== TRAFFIC Fri Feb 20 01:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T01:20:01.389843+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=73 airborne=57 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=90 airborne=35 ground=55
+\nDone.\n
+
