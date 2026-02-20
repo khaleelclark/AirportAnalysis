@@ -2,6 +2,7 @@ from pathlib import Path
 import sqlite3
 from datetime import datetime
 import subprocess
+import sys
 
 import pandas as pd
 import plotly.express as px
@@ -57,6 +58,28 @@ with calc_tab:
         ### Calculation Details
         This page documents how dashboard metrics are computed from live data.
 
+        ### Dashboard Section Guide
+        - **Last Synced (FAA Delays / Traffic / Airline Delay)**:
+          Shows the most recent timestamp ingested for each data source.
+        - **At A Glance**:
+          Quick comparison of which airport currently leads key risk indicators.
+        - **Latest Airport Snapshot**:
+          Per-airport live snapshot of severity, load, stress, longest delays, and FAA status.
+        - **Airline Delay Impact**:
+          Passenger-facing trend view from AirLabs delays, cancellations, and diversions.
+        - **Trend Lines (2×2)**:
+          Delay raw/rolling plus baseline/adjusted stress trends over time.
+        - **Traffic Load Vs Delay Severity**:
+          Scatter view to evaluate delay severity at comparable load levels.
+        - **Delay Heatmap (Hour × Day Of Week)**:
+          Pattern view of when disruption tends to cluster.
+        - **Worst Time Periods**:
+          Ranked tables of highest-stress days and hour blocks.
+        - **Traffic Vs Delay Relationship**:
+          Correlation and scatter between aircraft volume and FAA delay severity.
+        - **Raw Delay Snapshots (Filtered)**:
+          Traceability table of underlying rows used by the charts.
+
         ### 1) FAA Delay Severity Index (Operational)
         Derived from FAA NASStatus event types:
         - `0`: No active FAA restriction
@@ -91,10 +114,12 @@ with calc_tab:
         - `operational_stress_score = (1 + faa_delay_severity_index) * (traffic_load_effective / 100)`
 
         ### 5) Load-Adjusted Stress Score
-        Normalizes operational stress by relative load at each timestamp:
+        Applies partial load normalization at each timestamp so busier airports get some grace,
+        but not a full cancellation of load differences:
         - `peer_avg_load = mean(traffic_load_effective across airports at same timestamp)`
         - `relative_load_factor = traffic_load_effective / peer_avg_load`
-        - `load_adjusted_stress_score = operational_stress_score / relative_load_factor`
+        - `load_grace_exponent = 0.7`
+        - `load_adjusted_stress_score = operational_stress_score / (relative_load_factor ^ load_grace_exponent)`
 
         Interpretation:
         - If an airport stays worse after this adjustment, that suggests disproportionate operational pain beyond just being busier.
@@ -120,8 +145,12 @@ with overview_tab:
             - **Airline Delay Severity Index (AirLabs)**: `0-5` index based on live airline delay minutes, cancellations, and diversions.
             - **Traffic Load**: Live aircraft count in airport airspace. This is the pressure/load signal.
             - **Operational Stress Score**: `(1 + Delay Severity Index) × Traffic Load` (scaled). Higher means heavier operational strain.
-            - **Load-Adjusted Stress Score**: Operational stress normalized by relative load at that moment.
+            - **Load-Adjusted Stress Score**: Operational stress partially normalized by relative load at that moment
+              (uses a grace exponent of `0.7`, so higher load gets some allowance but not a full pass).
               Use this for the fairest MCO vs DEN comparison when traffic differs.
+            - **Trend Lines (2×2)**:
+              Top row shows FAA delay severity (raw and rolling average).
+              Bottom row shows Operational Stress (baseline) and Load-Adjusted Stress (with load grace).
             - **Longest Delay Today Metrics**:
               `Longest Airline Delay Today` comes from AirLabs flight delays.
               `Longest Delay Today (Any Source)` takes the larger value between airline delays and FAA event delay ranges.
@@ -144,6 +173,23 @@ with overview_tab:
         df = pd.read_sql_query(query, conn)
         conn.close()
         return df
+
+    @st.cache_data(ttl=300)
+    def get_table_columns(table_name: str) -> set[str]:
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            rows = pd.read_sql_query(f"PRAGMA table_info({table_name})", conn)
+        finally:
+            conn.close()
+        if rows.empty or "name" not in rows.columns:
+            return set()
+        return set(rows["name"].astype(str).tolist())
+
+    def sql_col_or_null(cols: set[str], col_name: str, alias: str | None = None) -> str:
+        out = alias or col_name
+        if col_name in cols:
+            return f"{col_name} AS {out}"
+        return f"NULL AS {out}"
     
     def get_last_updated() -> dict:
         q = """
@@ -164,6 +210,18 @@ with overview_tab:
             return float(x)
         except Exception:
             return None
+
+    def safe_corr(series_x: pd.Series, series_y: pd.Series) -> float | None:
+        x = pd.to_numeric(series_x, errors="coerce")
+        y = pd.to_numeric(series_y, errors="coerce")
+        valid = x.notna() & y.notna()
+        if valid.sum() < 3:
+            return None
+        x = x[valid]
+        y = y[valid]
+        if x.nunique() < 2 or y.nunique() < 2:
+            return None
+        return float(x.corr(y))
     
     
     LOCAL_TZ = datetime.now().astimezone().tzinfo
@@ -203,10 +261,11 @@ with overview_tab:
     
     
     def run_manual_sync_collectors() -> list[dict]:
+        python_bin = sys.executable
         commands = [
-            ("FAA Delays", [str(PROJECT_ROOT / ".venv" / "bin" / "python"), "src/collect_delays.py"]),
-            ("Live Airspace Traffic", [str(PROJECT_ROOT / ".venv" / "bin" / "python"), "src/collect_traffic.py"]),
-            ("Airline Delay", [str(PROJECT_ROOT / ".venv" / "bin" / "python"), "src/collect_flights.py"]),
+            ("FAA Delays", [python_bin, "src/collect_delays.py"]),
+            ("Live Airspace Traffic", [python_bin, "src/collect_traffic.py"]),
+            ("Airline Delay", [python_bin, "src/collect_flights.py"]),
         ]
         results = []
         for label, cmd in commands:
@@ -231,31 +290,29 @@ with overview_tab:
     # -----------------------
     # Load data
     # -----------------------
-    delay_df = load_df("""
+    delay_cols = get_table_columns("delay_snapshots")
+    delay_df = load_df(f"""
                        SELECT
-                           id,
-                           airport_code,
-                           collected_at,
-                           window_from_utc,
-                           window_to_utc,
+                           {sql_col_or_null(delay_cols, "id")},
+                           {sql_col_or_null(delay_cols, "airport_code")},
+                           {sql_col_or_null(delay_cols, "collected_at")},
+                           {sql_col_or_null(delay_cols, "window_from_utc")},
+                           {sql_col_or_null(delay_cols, "window_to_utc")},
+                           {sql_col_or_null(delay_cols, "source")},
+                           {sql_col_or_null(delay_cols, "delay_index")},
+                           {sql_col_or_null(delay_cols, "delay_median_minutes")},
+                           {sql_col_or_null(delay_cols, "dep_total")},
+                           {sql_col_or_null(delay_cols, "arr_total")},
+                           {sql_col_or_null(delay_cols, "dep_delay_index")},
+                           {sql_col_or_null(delay_cols, "dep_median_delay_minutes")},
+                           {sql_col_or_null(delay_cols, "arr_delay_index")},
+                           {sql_col_or_null(delay_cols, "arr_median_delay_minutes")},
+                           {sql_col_or_null(delay_cols, "faa_update_time")},
+                           {sql_col_or_null(delay_cols, "faa_event_count")},
                            CASE
-                               WHEN raw_json LIKE '%FAA_NASSTATUS%' THEN 'FAA_NASSTATUS'
-                               ELSE 'AERODATABOX'
-                           END AS source,
-    
-                           delay_index,
-                           delay_median_minutes,
-    
-                           dep_total,
-                           arr_total,
-                           dep_delay_index,
-                           dep_median_delay_minutes,
-    
-                           arr_delay_index,
-                           arr_median_delay_minutes,
-                           faa_update_time,
-                           faa_event_count,
-                           json_extract(raw_json, '$.airport.status') AS faa_status
+                               WHEN raw_json IS NOT NULL THEN json_extract(raw_json, '$.airport.status')
+                               ELSE NULL
+                           END AS faa_status
                        FROM delay_snapshots
                        ORDER BY collected_at ASC
                        """)
@@ -302,11 +359,29 @@ with overview_tab:
     delay_df["collected_at"] = pd.to_datetime(delay_df["collected_at"], utc=True)
     delay_df["collected_at_local"] = delay_df["collected_at"].dt.tz_convert(LOCAL_TZ)
     delay_df["collected_at_local_label"] = delay_df["collected_at_local"].dt.strftime("%I:%M %p %b %d")
+    delay_df["source"] = delay_df["source"].fillna("UNKNOWN")
+
+    for numeric_col in [
+        "delay_index",
+        "delay_median_minutes",
+        "dep_total",
+        "arr_total",
+        "dep_delay_index",
+        "dep_median_delay_minutes",
+        "arr_delay_index",
+        "arr_median_delay_minutes",
+        "faa_event_count",
+    ]:
+        if numeric_col in delay_df.columns:
+            delay_df[numeric_col] = pd.to_numeric(delay_df[numeric_col], errors="coerce")
     
     if not traffic_df.empty:
         traffic_df["collected_at"] = pd.to_datetime(traffic_df["collected_at"], utc=True)
         traffic_df["collected_at_local"] = traffic_df["collected_at"].dt.tz_convert(LOCAL_TZ)
         traffic_df["collected_at_local_label"] = traffic_df["collected_at_local"].dt.strftime("%I:%M %p %b %d")
+        for numeric_col in ["aircraft_count", "airborne_count", "on_ground_count", "altitude_median", "velocity_median"]:
+            if numeric_col in traffic_df.columns:
+                traffic_df[numeric_col] = pd.to_numeric(traffic_df[numeric_col], errors="coerce")
     
     if not flight_df.empty:
         flight_df["collected_at"] = pd.to_datetime(flight_df["collected_at"], utc=True)
@@ -508,7 +583,9 @@ with overview_tab:
     )
     filtered["operational_stress_score"] = pd.to_numeric(filtered["operational_stress_score"], errors="coerce")
 
-    # Load-adjusted score normalizes stress by relative load at each snapshot timestamp.
+    # Load-adjusted score applies partial load normalization.
+    # Exponent < 1 gives higher-load airports some grace without fully cancelling load.
+    LOAD_GRACE_EXPONENT = 0.7
     filtered["peer_avg_load"] = filtered.groupby("collected_at")["traffic_load_effective"].transform("mean")
     filtered["relative_load_factor"] = filtered["traffic_load_effective"] / filtered["peer_avg_load"]
     filtered["relative_load_factor"] = pd.to_numeric(filtered["relative_load_factor"], errors="coerce")
@@ -516,7 +593,10 @@ with overview_tab:
         filtered["relative_load_factor"].isna() | (filtered["relative_load_factor"] <= 0),
         "relative_load_factor"
     ] = 1.0
-    filtered["load_adjusted_stress_score"] = filtered["operational_stress_score"] / filtered["relative_load_factor"]
+    filtered["load_adjusted_stress_score"] = (
+        filtered["operational_stress_score"] /
+        (filtered["relative_load_factor"] ** LOAD_GRACE_EXPONENT)
+    )
     filtered["load_adjusted_stress_score"] = pd.to_numeric(filtered["load_adjusted_stress_score"], errors="coerce")
     
     # Convenience time features (Local)
@@ -631,10 +711,19 @@ with overview_tab:
     
     overview_df = pd.DataFrame(overview_rows)
     if not overview_df.empty:
+        for numeric_col in [
+            "operational_stress_score",
+            "load_adjusted_stress_score",
+            "airline_delay_severity_index",
+            "traffic_load",
+            "longest_delay_today",
+        ]:
+            overview_df[numeric_col] = pd.to_numeric(overview_df[numeric_col], errors="coerce")
+
         o1, o2, o3, o4 = st.columns(4)
-        top_stress = overview_df.sort_values("load_adjusted_stress_score", ascending=False).iloc[0]
-        top_airline = overview_df.sort_values("airline_delay_severity_index", ascending=False).iloc[0]
-        top_longest = overview_df.sort_values("longest_delay_today", ascending=False).iloc[0]
+        top_stress = overview_df.assign(load_adjusted_stress_score=overview_df["load_adjusted_stress_score"].fillna(float("-inf"))).sort_values("load_adjusted_stress_score", ascending=False).iloc[0]
+        top_airline = overview_df.assign(airline_delay_severity_index=overview_df["airline_delay_severity_index"].fillna(float("-inf"))).sort_values("airline_delay_severity_index", ascending=False).iloc[0]
+        top_longest = overview_df.assign(longest_delay_today=overview_df["longest_delay_today"].fillna(float("-inf"))).sort_values("longest_delay_today", ascending=False).iloc[0]
     
         traffic_gap_text = "N/A"
         if len(overview_df) >= 2 and overview_df["traffic_load"].notna().sum() >= 2:
@@ -877,6 +966,8 @@ with overview_tab:
         rolling_window = 6
         
         trend = filtered.sort_values(["airport_code", "collected_at"]).copy()
+        for numeric_col in ["delay_index_best", "traffic_load_effective", "operational_stress_score", "load_adjusted_stress_score"]:
+            trend[numeric_col] = pd.to_numeric(trend[numeric_col], errors="coerce")
         trend["delay_index_roll"] = (
             trend.groupby("airport_code")["delay_index_best"]
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
@@ -896,9 +987,9 @@ with overview_tab:
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
         )
         
-        c1, c2, c3 = st.columns(3)
+        row1_col1, row1_col2 = st.columns(2)
         
-        with c1:
+        with row1_col1:
             fig = px.line(
                 trend,
                 x="collected_at_local",
@@ -915,7 +1006,7 @@ with overview_tab:
             format_time_axis_12h(fig)
             st.plotly_chart(fig, width='stretch')
         
-        with c2:
+        with row1_col2:
             fig = px.line(
                 trend,
                 x="collected_at_local",
@@ -932,7 +1023,26 @@ with overview_tab:
             format_time_axis_12h(fig)
             st.plotly_chart(fig, width='stretch')
         
-        with c3:
+        row2_col1, row2_col2 = st.columns(2)
+        
+        with row2_col1:
+            fig = px.line(
+                trend,
+                x="collected_at_local",
+                y="sucks_roll",
+                color="airport_code",
+                markers=True,
+                title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
+                labels={
+                    "collected_at_local": "Snapshot Time (Local)",
+                    "sucks_roll": "Operational Stress Score",
+                    "airport_code": "Airport",
+                },
+            )
+            format_time_axis_12h(fig)
+            st.plotly_chart(fig, width='stretch')
+
+        with row2_col2:
             fig = px.line(
                 trend,
                 x="collected_at_local",
@@ -1100,13 +1210,7 @@ with overview_tab:
                 corr_rows = []
                 for airport in selected_airports:
                     sub = merged[merged["airport_code"] == airport].dropna(subset=["aircraft_count", "delay_index_best"])
-                    if len(sub) < 3:
-                        corr = None
-                    elif sub["aircraft_count"].nunique() < 2 or sub["delay_index_best"].nunique() < 2:
-                        # Avoid NumPy divide warnings from zero-variance correlation inputs.
-                        corr = None
-                    else:
-                        corr = sub["aircraft_count"].corr(sub["delay_index_best"])
+                    corr = safe_corr(sub["aircraft_count"], sub["delay_index_best"])
                     corr_rows.append({"airport_code": airport, "corr_aircraft_vs_delay": corr, "points": len(sub)})
         
                 st.write("### Correlation Summary (Aircraft Count Vs Delay Severity)")

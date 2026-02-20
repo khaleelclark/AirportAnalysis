@@ -85,7 +85,7 @@ It collects and visualizes:
 - `Airline Delay Severity Index`: 0-5 index from live flight delay/cancel/diversion mix
 - `Traffic Load`: live aircraft count in airspace
 - `Operational Stress Score`: combines FAA severity and traffic load
-- `Load-Adjusted Stress Score`: normalizes stress by relative load to compare airports fairly
+- `Load-Adjusted Stress Score`: partially adjusts stress by relative load (grace factor) to compare airports fairly
 - `Longest Airline Delay Today`
 - `Longest Delay Today (Any Source)`
 
