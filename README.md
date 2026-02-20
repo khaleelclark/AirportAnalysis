@@ -172,6 +172,26 @@ Windows (PowerShell or Command Prompt):
 .venv\Scripts\streamlit run dashboard\app.py
 ```
 
+## Testing
+
+Run tests locally (no API calls are made by the current test suite):
+
+Linux / macOS:
+
+```bash
+.venv/bin/pytest -q
+```
+
+Windows (PowerShell or Command Prompt):
+
+```bat
+.venv\Scripts\pytest -q
+```
+
+Notes:
+- Tests in `tests/test_basic.py` validate parser/scoring logic for FAA, traffic, and AirLabs collectors.
+- These tests use synthetic inputs and do not consume AirLabs request credits.
+
 ## Cron schedule (current)
 
 ```cron
