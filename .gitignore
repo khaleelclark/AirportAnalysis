@@ -1,4 +1,5 @@
 .env*
+!.env.example
 
 # Python caches and artifacts
 __pycache__/
