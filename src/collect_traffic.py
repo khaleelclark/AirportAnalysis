@@ -1,23 +1,25 @@
 import json
-import requests
+import os
 from datetime import datetime, timezone
 from statistics import median
+from typing import Any, Optional
 
-from db import get_connection, create_tables
+import requests
 
+from db import create_tables, get_connection
 
-# Bounding boxes (lat min, lat max, lon min, lon max)
-# These are "reasonable airspace boxes" around each airport.
-AIRPORT_BBOX = {
-    "MCO": {"lamin": 28.10, "lamax": 28.75, "lomin": -81.75, "lomax": -80.90},
-    "DEN": {"lamin": 39.55, "lamax": 40.20, "lomin": -105.20, "lomax": -104.10},
+# Center point + radius (nautical miles) around airport terminal area and approach corridors.
+AIRPORT_AREAS = {
+    "MCO": {"lat": 28.4312, "lon": -81.3081, "dist_nm": 35},
+    "DEN": {"lat": 39.8561, "lon": -104.6737, "dist_nm": 35},
 }
 
-OPENSKY_URL = "https://opensky-network.org/api/states/all"
+# ADSBExchange-compatible shape used by api.adsb.lol.
+URL_TEMPLATE = os.getenv("ADSBLOL_URL_TEMPLATE", "https://api.adsb.lol/v2/lat/{lat}/lon/{lon}/dist/{dist_nm}")
+TIMEOUT_SECONDS = 25
 
 
-def percentile(values, p: float):
-    """Returns the pth percentile of a list (0-100)."""
+def percentile(values: list[float], p: float) -> Optional[float]:
     if not values:
         return None
 
@@ -32,82 +34,131 @@ def percentile(values, p: float):
     return float(values_sorted[f] + (values_sorted[c] - values_sorted[f]) * (k - f))
 
 
-def fetch_opensky_states(bbox_params: dict):
-    """Calls OpenSky API and returns JSON response."""
-    response = requests.get(OPENSKY_URL, params=bbox_params, timeout=20)
+def _to_float(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.strip().lower() in {"", "none", "nan", "ground"}:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
-    if response.status_code != 200:
-        raise Exception(f"OpenSky API error: {response.status_code} - {response.text}")
 
-    return response.json()
+def _extract_aircraft_list(payload: dict[str, Any]) -> list[Any]:
+    if isinstance(payload.get("ac"), list):
+        return payload["ac"]
+    if isinstance(payload.get("aircraft"), list):
+        return payload["aircraft"]
+    if isinstance(payload.get("states"), list):
+        return payload["states"]
+    return []
 
 
-def summarize_states(states: list):
-    """
-    OpenSky 'states' is a list of lists.
-    Each element represents one aircraft state vector.
-    We will compute summary stats from it.
-    """
-    aircraft_count = len(states)
+def _parse_row(row: Any) -> tuple[Optional[bool], Optional[float], Optional[float]]:
+    # dict style
+    if isinstance(row, dict):
+        on_ground = row.get("gnd")
+        if on_ground is None:
+            on_ground = row.get("on_ground")
 
+        velocity = (
+            row.get("gs")
+            if row.get("gs") is not None
+            else row.get("speed")
+        )
+
+        altitude = (
+            row.get("alt_baro")
+            if row.get("alt_baro") is not None
+            else row.get("alt_geom")
+        )
+        if altitude is None:
+            altitude = row.get("altitude")
+
+        # ADSB.lol frequently uses alt_baro='ground' without an explicit gnd flag.
+        if isinstance(altitude, str) and altitude.strip().lower() == "ground":
+            on_ground = True
+
+        altitude_num = _to_float(altitude)
+        velocity_num = _to_float(velocity)
+
+        # Fallback inference when no explicit ground flag is provided.
+        if on_ground is None:
+            if altitude_num is not None and altitude_num > 300:
+                on_ground = False
+            elif velocity_num is not None and velocity_num >= 80:
+                on_ground = False
+            elif velocity_num is not None and velocity_num < 50:
+                on_ground = True
+
+        return (bool(on_ground) if on_ground is not None else None, velocity_num, altitude_num)
+
+    # OpenSky-like list fallback: index 8 on_ground, index 9 velocity, index 13 geo_alt, index 7 baro_alt
+    if isinstance(row, list):
+        on_ground = row[8] if len(row) > 8 else None
+        velocity = row[9] if len(row) > 9 else None
+        altitude = row[13] if len(row) > 13 and row[13] is not None else (row[7] if len(row) > 7 else None)
+        return (bool(on_ground) if on_ground is not None else None, _to_float(velocity), _to_float(altitude))
+
+    return (None, None, None)
+
+
+def fetch_adsb(area: dict[str, float]) -> dict[str, Any]:
+    url = URL_TEMPLATE.format(lat=area["lat"], lon=area["lon"], dist_nm=area["dist_nm"])
+    resp = requests.get(url, timeout=TIMEOUT_SECONDS)
+    if resp.status_code != 200:
+        raise RuntimeError(f"ADSB.lol error {resp.status_code}: {resp.text[:250]}")
+    return resp.json()
+
+
+def summarize_aircraft(rows: list[Any]) -> dict[str, Any]:
+    aircraft_count = len(rows)
     airborne_count = 0
     on_ground_count = 0
 
-    altitudes = []
-    velocities = []
+    altitudes: list[float] = []
+    velocities: list[float] = []
 
-    for s in states:
-        # OpenSky state vector indices (important ones)
-        # 5 = longitude
-        # 6 = latitude
-        # 7 = baro_altitude
-        # 8 = on_ground (boolean)
-        # 9 = velocity (m/s)
-        # 13 = geo_altitude
-
-        on_ground = s[8]
-        velocity = s[9]
-        baro_altitude = s[7]
-        geo_altitude = s[13]
+    for row in rows:
+        on_ground, velocity, altitude = _parse_row(row)
 
         if on_ground is True:
             on_ground_count += 1
         elif on_ground is False:
             airborne_count += 1
 
-        # Prefer geo_altitude if available, fallback to baro_altitude
-        alt = geo_altitude if geo_altitude is not None else baro_altitude
-        if alt is not None:
-            altitudes.append(float(alt))
-
         if velocity is not None:
-            velocities.append(float(velocity))
-
-    altitude_median = float(median(altitudes)) if altitudes else None
-    altitude_p90 = percentile(altitudes, 90)
-
-    velocity_median = float(median(velocities)) if velocities else None
-    velocity_p90 = percentile(velocities, 90)
+            velocities.append(velocity)
+        if altitude is not None:
+            altitudes.append(altitude)
 
     return {
         "aircraft_count": aircraft_count,
         "airborne_count": airborne_count,
         "on_ground_count": on_ground_count,
-        "altitude_median": altitude_median,
-        "altitude_p90": altitude_p90,
-        "velocity_median": velocity_median,
-        "velocity_p90": velocity_p90,
+        "altitude_median": float(median(altitudes)) if altitudes else None,
+        "altitude_p90": percentile(altitudes, 90),
+        "velocity_median": float(median(velocities)) if velocities else None,
+        "velocity_p90": percentile(velocities, 90),
     }
 
 
-def insert_traffic_snapshot(airport_code: str, collected_at: str, summary: dict, raw_json: str):
+def insert_traffic_snapshot(
+    airport_code: str,
+    collected_at: str,
+    summary: dict[str, Any],
+    query_meta: str,
+    raw_json: str,
+):
     conn = get_connection()
     cur = conn.cursor()
-
-    cur.execute("""
-                INSERT OR IGNORE INTO traffic_snapshots (
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO traffic_snapshots (
             airport_code,
             collected_at,
+            source,
             aircraft_count,
             airborne_count,
             on_ground_count,
@@ -115,22 +166,25 @@ def insert_traffic_snapshot(airport_code: str, collected_at: str, summary: dict,
             altitude_p90,
             velocity_median,
             velocity_p90,
+            query_meta,
             raw_json
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    airport_code,
-                    collected_at,
-                    summary["aircraft_count"],
-                    summary["airborne_count"],
-                    summary["on_ground_count"],
-                    summary["altitude_median"],
-                    summary["altitude_p90"],
-                    summary["velocity_median"],
-                    summary["velocity_p90"],
-                    raw_json
-                ))
-
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            airport_code,
+            collected_at,
+            "ADSB_LOL",
+            summary["aircraft_count"],
+            summary["airborne_count"],
+            summary["on_ground_count"],
+            summary["altitude_median"],
+            summary["altitude_p90"],
+            summary["velocity_median"],
+            summary["velocity_p90"],
+            query_meta,
+            raw_json,
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -139,33 +193,42 @@ def main():
     create_tables()
 
     collected_at = datetime.now(timezone.utc).isoformat()
-    print(f"\nCollecting OpenSky traffic snapshots at {collected_at}\n")
+    print(f"\\nCollecting ADSB.lol traffic snapshots at {collected_at}\\n")
 
-    for airport_code, bbox in AIRPORT_BBOX.items():
-        print(f"Fetching traffic data for {airport_code}...")
+    for airport_code, area in AIRPORT_AREAS.items():
+        print(f"Fetching traffic for {airport_code}...")
 
-        data = fetch_opensky_states(bbox)
-        states = data.get("states") or []
-
-        summary = summarize_states(states)
+        data = fetch_adsb(area)
+        rows = _extract_aircraft_list(data)
+        summary = summarize_aircraft(rows)
 
         raw_debug = {
+            "source": "ADSB_LOL",
             "airport": airport_code,
-            "bbox": bbox,
-            "opensky_time": data.get("time"),
-            "state_count": len(states)
+            "collected_at": collected_at,
+            "area": area,
+            "response_keys": sorted(list(data.keys())),
+            "reported_count": data.get("total") or data.get("count") or len(rows),
+        }
+        query_meta = {
+            "url_template": URL_TEMPLATE,
+            "area": area,
         }
 
         insert_traffic_snapshot(
             airport_code=airport_code,
             collected_at=collected_at,
             summary=summary,
-            raw_json=json.dumps(raw_debug)
+            query_meta=json.dumps(query_meta),
+            raw_json=json.dumps(raw_debug),
         )
 
-        print(f"[OK] {airport_code}: aircraft={summary['aircraft_count']} airborne={summary['airborne_count']} ground={summary['on_ground_count']}")
+        print(
+            f"[OK] {airport_code}: aircraft={summary['aircraft_count']} "
+            f"airborne={summary['airborne_count']} ground={summary['on_ground_count']}"
+        )
 
-    print("\nDone.\n")
+    print("\\nDone.\\n")
 
 
 if __name__ == "__main__":
