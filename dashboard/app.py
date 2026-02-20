@@ -126,9 +126,10 @@ with calc_tab:
 
         ### 6) Longest Delay Metrics
         - **Longest Airline Delay Today**: max flight `delay_minutes` today (local date).
-        - **Longest Delay Today (Any Source)**: max of:
+        - **Longest Recorded Delay (Any Source)**: max of:
           airline longest delay,
-          FAA event delay range (max delay, fallback to min delay).
+          FAA event delay range (max delay, fallback to min delay),
+          across the full collected history.
         """
     )
 
@@ -153,7 +154,8 @@ with overview_tab:
               Bottom row shows Operational Stress (baseline) and Load-Adjusted Stress (with load grace).
             - **Longest Delay Today Metrics**:
               `Longest Airline Delay Today` comes from AirLabs flight delays.
-              `Longest Delay Today (Any Source)` takes the larger value between airline delays and FAA event delay ranges.
+              `Longest Recorded Delay (Any Source)` takes the largest value seen in your full collected history,
+              across airline delays and FAA event delay ranges.
             - **How To Interpret Quickly**:
               If MCO has a higher **Load-Adjusted Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
               If MCO is only worse when load spikes, then traffic volume may be the main driver.
@@ -690,14 +692,43 @@ with overview_tab:
                 r["airport_code"]: (r["longest_faa_delay_today"] if pd.notna(r["longest_faa_delay_today"]) else None)
                 for r in faa_max.to_dict(orient="records")
             }
+
+    longest_airline_all_time_map = {}
+    if not flight_df.empty:
+        airline_all_time = (
+            flight_df.groupby("airport_code", as_index=False)["delay_minutes"]
+            .max()
+            .rename(columns={"delay_minutes": "longest_airline_delay_all_time"})
+        )
+        longest_airline_all_time_map = {
+            r["airport_code"]: (r["longest_airline_delay_all_time"] if pd.notna(r["longest_airline_delay_all_time"]) else None)
+            for r in airline_all_time.to_dict(orient="records")
+        }
+
+    longest_faa_all_time_map = {}
+    if not faa_events_df.empty:
+        faa_all_time = faa_events_df.copy()
+        faa_all_time["faa_delay_for_max"] = faa_all_time["max_delay_minutes"]
+        faa_all_time.loc[faa_all_time["faa_delay_for_max"].isna(), "faa_delay_for_max"] = faa_all_time["min_delay_minutes"]
+        faa_max_all = (
+            faa_all_time.groupby("airport_code", as_index=False)["faa_delay_for_max"]
+            .max()
+            .rename(columns={"faa_delay_for_max": "longest_faa_delay_all_time"})
+        )
+        longest_faa_all_time_map = {
+            r["airport_code"]: (r["longest_faa_delay_all_time"] if pd.notna(r["longest_faa_delay_all_time"]) else None)
+            for r in faa_max_all.to_dict(orient="records")
+        }
     
     overview_rows = []
     for row in latest_by_airport.to_dict(orient="records"):
         airport = row["airport_code"]
         airline_score = (airline_severity_map.get(airport) or {}).get("score")
         airline_today = longest_airline_today_map.get(airport)
-        faa_today = longest_faa_today_map.get(airport)
-        any_today = max([v for v in [airline_today, faa_today] if v is not None], default=None)
+        any_recorded = max(
+            [v for v in [longest_airline_all_time_map.get(airport), longest_faa_all_time_map.get(airport)] if v is not None],
+            default=None
+        )
         overview_rows.append(
             {
                 "airport_code": airport,
@@ -705,7 +736,7 @@ with overview_tab:
             "load_adjusted_stress_score": safe_float(row.get("load_adjusted_stress_score")),
             "airline_delay_severity_index": safe_float(airline_score),
             "traffic_load": safe_float(row.get("traffic_load_effective")),
-            "longest_delay_today": safe_float(any_today),
+            "longest_delay_recorded": safe_float(any_recorded),
         }
     )
     
@@ -716,14 +747,14 @@ with overview_tab:
             "load_adjusted_stress_score",
             "airline_delay_severity_index",
             "traffic_load",
-            "longest_delay_today",
+            "longest_delay_recorded",
         ]:
             overview_df[numeric_col] = pd.to_numeric(overview_df[numeric_col], errors="coerce")
 
         o1, o2, o3, o4 = st.columns(4)
         top_stress = overview_df.assign(load_adjusted_stress_score=overview_df["load_adjusted_stress_score"].fillna(float("-inf"))).sort_values("load_adjusted_stress_score", ascending=False).iloc[0]
         top_airline = overview_df.assign(airline_delay_severity_index=overview_df["airline_delay_severity_index"].fillna(float("-inf"))).sort_values("airline_delay_severity_index", ascending=False).iloc[0]
-        top_longest = overview_df.assign(longest_delay_today=overview_df["longest_delay_today"].fillna(float("-inf"))).sort_values("longest_delay_today", ascending=False).iloc[0]
+        top_longest = overview_df.assign(longest_delay_recorded=overview_df["longest_delay_recorded"].fillna(float("-inf"))).sort_values("longest_delay_recorded", ascending=False).iloc[0]
     
         traffic_gap_text = "N/A"
         if len(overview_df) >= 2 and overview_df["traffic_load"].notna().sum() >= 2:
@@ -745,9 +776,9 @@ with overview_tab:
             st.metric("Traffic Load Gap", traffic_gap_text)
         with o4:
             longest_text = "N/A"
-            if not pd.isna(top_longest["longest_delay_today"]):
-                longest_text = f"{top_longest['airport_code']} ({format_minutes_hr_min(top_longest['longest_delay_today'])})"
-            st.metric("Longest Delay Today", longest_text)
+            if not pd.isna(top_longest["longest_delay_recorded"]):
+                longest_text = f"{top_longest['airport_code']} ({format_minutes_hr_min(top_longest['longest_delay_recorded'])})"
+            st.metric("Longest Recorded Delay", longest_text)
         
         st.divider()
         
@@ -789,9 +820,8 @@ with overview_tab:
             traffic_row = traffic_latest_map.get(row["airport_code"])
             airline_row = airline_severity_map.get(row["airport_code"])
             airline_max_today = longest_airline_today_map.get(row["airport_code"])
-            faa_max_today = longest_faa_today_map.get(row["airport_code"])
-            longest_any_today = max(
-                [v for v in [airline_max_today, faa_max_today] if v is not None],
+            longest_any_recorded = max(
+                [v for v in [longest_airline_all_time_map.get(row["airport_code"]), longest_faa_all_time_map.get(row["airport_code"])] if v is not None],
                 default=None
             )
             with card_cols[i]:
@@ -818,8 +848,8 @@ with overview_tab:
                     value="—" if pd.isna(row["load_adjusted_stress_score"]) else round(float(row["load_adjusted_stress_score"]), 3),
                 )
                 st.metric(
-                    label=f"{row['airport_code']} Longest Delay Today (Any Source)",
-                    value=format_minutes_hr_min(longest_any_today),
+                    label=f"{row['airport_code']} Longest Recorded Delay (Any Source)",
+                    value=format_minutes_hr_min(longest_any_recorded),
                 )
                 st.metric(
                     label=f"{row['airport_code']} Longest Airline Delay Today",
@@ -932,9 +962,12 @@ with overview_tab:
                 today_rows = []
                 for airport in selected_airports:
                     airline_today = longest_airline_today_map.get(airport)
-                    any_today = max([v for v in [airline_today, longest_faa_today_map.get(airport)] if v is not None], default=None)
+                    any_recorded = max(
+                        [v for v in [longest_airline_all_time_map.get(airport), longest_faa_all_time_map.get(airport)] if v is not None],
+                        default=None
+                    )
                     today_rows.append({"airport_code": airport, "metric": "Longest Airline Delay Today", "delay_minutes": airline_today})
-                    today_rows.append({"airport_code": airport, "metric": "Longest Delay Today (Any Source)", "delay_minutes": any_today})
+                    today_rows.append({"airport_code": airport, "metric": "Longest Recorded Delay (Any Source)", "delay_minutes": any_recorded})
         
                 today_df = pd.DataFrame(today_rows)
                 today_df = today_df[today_df["delay_minutes"].notna()]

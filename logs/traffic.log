@@ -15970,3 +15970,931 @@ Fetching traffic for DEN...
 [OK] DEN: aircraft=76 airborne=42 ground=34
 \nDone.\n
 
+=== TRAFFIC Fri Feb 20 02:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:00:01.809467+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=58 airborne=51 ground=7
+Fetching traffic for DEN...
+[OK] DEN: aircraft=77 airborne=38 ground=39
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:10:01.313195+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=51 airborne=37 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=85 airborne=41 ground=44
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:20:01.466201+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=57 airborne=42 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=102 airborne=40 ground=62
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:30:01.663546+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=51 airborne=39 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=105 airborne=39 ground=66
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:40:01.843597+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=51 airborne=43 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=97 airborne=41 ground=56
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T02:50:01.952553+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=48 airborne=37 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=90 airborne=41 ground=49
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:00:01.487622+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=42 airborne=33 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=79 airborne=38 ground=41
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:10:01.692018+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=44 airborne=31 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=64 airborne=32 ground=32
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:20:01.329852+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=36 airborne=28 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=68 airborne=33 ground=35
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:30:01.479130+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=35 airborne=21 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=60 airborne=31 ground=29
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:40:01.587580+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=36 airborne=27 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=58 airborne=27 ground=31
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T03:50:01.819061+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=37 airborne=25 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=54 airborne=17 ground=37
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:00:01.902696+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=49 airborne=32 ground=17
+Fetching traffic for DEN...
+[OK] DEN: aircraft=55 airborne=21 ground=34
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:10:01.726951+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=40 airborne=20 ground=19
+Fetching traffic for DEN...
+[OK] DEN: aircraft=51 airborne=24 ground=27
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:20:01.873058+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=36 airborne=23 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=56 airborne=24 ground=32
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:30:02.021786+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=33 airborne=17 ground=16
+Fetching traffic for DEN...
+[OK] DEN: aircraft=59 airborne=25 ground=34
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:40:02.085034+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=33 airborne=17 ground=16
+Fetching traffic for DEN...
+[OK] DEN: aircraft=59 airborne=35 ground=24
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T04:50:01.286204+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=22 airborne=8 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=45 airborne=18 ground=27
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:00:01.361157+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=21 airborne=7 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=34 airborne=9 ground=25
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:10:01.480959+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=22 airborne=8 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=30 airborne=8 ground=22
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:20:01.767345+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=20 airborne=7 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=36 airborne=13 ground=23
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:30:01.829461+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=16 airborne=5 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=42 airborne=14 ground=28
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:40:01.923112+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=16 airborne=3 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=43 airborne=11 ground=32
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T05:50:01.112395+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=2 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=38 airborne=14 ground=24
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:00:01.192147+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=12 airborne=2 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=41 airborne=11 ground=30
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:10:01.215612+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=2 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=33 airborne=9 ground=24
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:20:01.422549+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=12 airborne=3 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=28 airborne=5 ground=23
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:30:01.530503+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=12 airborne=2 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=23 airborne=4 ground=19
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:40:01.836668+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=23 airborne=6 ground=17
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T06:50:01.995346+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=10 airborne=1 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=32 airborne=4 ground=28
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:00:01.129388+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=28 airborne=6 ground=22
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:10:01.263983+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=34 airborne=5 ground=29
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:20:01.451065+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=13 airborne=4 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=27 airborne=8 ground=19
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:30:01.580937+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=12 airborne=2 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=23 airborne=4 ground=19
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:40:01.804912+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=2 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=19 airborne=3 ground=16
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T07:50:01.254222+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=3 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=16 airborne=1 ground=15
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:00:01.384415+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=3 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=22 airborne=7 ground=15
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:10:01.525004+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=10 airborne=1 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=18 airborne=2 ground=16
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:20:01.658982+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=9 airborne=2 ground=7
+Fetching traffic for DEN...
+[OK] DEN: aircraft=17 airborne=1 ground=16
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:30:01.793153+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=8 airborne=1 ground=7
+Fetching traffic for DEN...
+[OK] DEN: aircraft=16 airborne=2 ground=14
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:40:01.831511+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=9 airborne=2 ground=7
+Fetching traffic for DEN...
+[OK] DEN: aircraft=12 airborne=2 ground=10
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T08:50:01.924790+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=14 airborne=4 ground=10
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:00:02.030930+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=2 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=11 airborne=0 ground=11
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:10:01.153191+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=16 airborne=2 ground=14
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:20:01.255367+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=10 airborne=2 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=11 airborne=2 ground=9
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:30:01.380591+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=10 airborne=2 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=11 airborne=0 ground=11
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:40:01.441397+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=10 airborne=2 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=9 airborne=0 ground=9
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T09:50:01.796987+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=0 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=8 airborne=0 ground=8
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:00:02.068683+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=11 airborne=1 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=11 airborne=2 ground=9
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:10:01.217422+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=19 airborne=7 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=12 airborne=3 ground=9
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:20:01.340103+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=23 airborne=10 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=13 airborne=2 ground=11
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:30:01.544648+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=18 airborne=5 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=12 airborne=2 ground=10
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:40:01.717202+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=21 airborne=8 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=13 airborne=1 ground=12
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 10:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T10:50:01.848426+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=19 airborne=5 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=14 airborne=1 ground=13
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:00:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:00:01.928662+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=26 airborne=6 ground=19
+Fetching traffic for DEN...
+[OK] DEN: aircraft=12 airborne=1 ground=11
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:10:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:10:02.022964+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=28 airborne=13 ground=15
+Fetching traffic for DEN...
+[OK] DEN: aircraft=14 airborne=2 ground=12
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:20:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:20:01.192199+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=28 airborne=11 ground=17
+Fetching traffic for DEN...
+[OK] DEN: aircraft=19 airborne=5 ground=14
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:30:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:30:01.349224+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=33 airborne=20 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=22 airborne=2 ground=20
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:40:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:40:01.358022+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=20 airborne=9 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=16 airborne=3 ground=13
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 11:50:01 AM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T11:50:01.430331+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=30 airborne=17 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=18 airborne=1 ground=17
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:00:01.499046+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=43 airborne=27 ground=16
+Fetching traffic for DEN...
+[OK] DEN: aircraft=23 airborne=2 ground=21
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:10:01.882354+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=54 airborne=27 ground=26
+Fetching traffic for DEN...
+[OK] DEN: aircraft=22 airborne=0 ground=22
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:20:01.899132+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=59 airborne=34 ground=22
+Fetching traffic for DEN...
+[OK] DEN: aircraft=24 airborne=1 ground=23
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:30:01.934941+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=52 airborne=30 ground=20
+Fetching traffic for DEN...
+[OK] DEN: aircraft=25 airborne=4 ground=21
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:40:02.000249+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=49 airborne=33 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=28 airborne=4 ground=24
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 12:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T12:50:01.159115+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=53 airborne=37 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=27 airborne=2 ground=25
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:00:01.314858+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=51 airborne=37 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=35 airborne=5 ground=30
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:10:01.432130+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=54 airborne=38 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=43 airborne=11 ground=32
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:20:01.693962+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=60 airborne=43 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=45 airborne=18 ground=27
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:30:01.866612+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=71 airborne=57 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=51 airborne=24 ground=27
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:40:01.955381+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=73 airborne=56 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=60 airborne=31 ground=29
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 01:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T13:50:02.022758+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=84 airborne=66 ground=17
+Fetching traffic for DEN...
+[OK] DEN: aircraft=56 airborne=19 ground=37
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:00:01.233774+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=106 airborne=88 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=65 airborne=26 ground=39
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:10:01.653883+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=112 airborne=90 ground=17
+Fetching traffic for DEN...
+[OK] DEN: aircraft=65 airborne=27 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:20:01.997481+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=111 airborne=96 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=65 airborne=27 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:30:01.225174+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=134 airborne=113 ground=19
+Fetching traffic for DEN...
+[OK] DEN: aircraft=75 airborne=33 ground=42
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:40:01.524371+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=133 airborne=117 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=86 airborne=43 ground=43
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 02:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T14:50:01.809159+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=131 airborne=116 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=106 airborne=54 ground=52
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:00:01.529554+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=124 airborne=109 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=121 airborne=48 ground=73
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:10:01.890846+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=135 airborne=118 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=134 airborne=61 ground=73
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:20:01.430212+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=129 airborne=113 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=135 airborne=62 ground=73
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:30:01.848912+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=125 airborne=108 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=124 airborne=66 ground=58
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:40:02.060643+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=121 airborne=112 ground=5
+Fetching traffic for DEN...
+[OK] DEN: aircraft=117 airborne=67 ground=50
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 03:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T15:50:01.309908+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=120 airborne=105 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=84 airborne=45 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:00:01.608526+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=126 airborne=113 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=75 airborne=33 ground=42
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:10:01.292866+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=135 airborne=123 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=88 airborne=50 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:20:02.084917+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=133 airborne=118 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=82 airborne=53 ground=29
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:30:01.620382+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=135 airborne=122 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=92 airborne=53 ground=39
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:40:01.336828+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=124 airborne=106 ground=15
+Fetching traffic for DEN...
+[OK] DEN: aircraft=113 airborne=64 ground=49
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 04:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T16:50:01.293097+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=130 airborne=111 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=143 airborne=77 ground=66
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:00:01.722194+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=134 airborne=113 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=149 airborne=72 ground=77
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:10:01.287455+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=122 airborne=107 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=132 airborne=74 ground=58
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:20:01.984913+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=125 airborne=114 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=133 airborne=59 ground=74
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:30:01.306995+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=132 airborne=123 ground=4
+Fetching traffic for DEN...
+[OK] DEN: aircraft=115 airborne=51 ground=64
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:40:02.061590+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=131 airborne=118 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=98 airborne=45 ground=53
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 05:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T17:50:01.536409+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=131 airborne=122 ground=6
+Fetching traffic for DEN...
+[OK] DEN: aircraft=86 airborne=43 ground=43
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:00:01.964643+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=122 airborne=112 ground=6
+Fetching traffic for DEN...
+[OK] DEN: aircraft=83 airborne=37 ground=46
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:10:01.494743+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=128 airborne=118 ground=8
+Fetching traffic for DEN...
+[OK] DEN: aircraft=70 airborne=39 ground=31
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:20:01.206625+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=126 airborne=111 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=70 airborne=32 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:30:01.755571+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=129 airborne=114 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=98 airborne=47 ground=51
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:40:01.482694+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=109 airborne=94 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=98 airborne=48 ground=50
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 06:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T18:50:01.846961+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=95 airborne=83 ground=9
+Fetching traffic for DEN...
+[OK] DEN: aircraft=96 airborne=58 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:00:01.158646+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=119 airborne=105 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=90 airborne=47 ground=43
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:10:01.789088+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=138 airborne=115 ground=20
+Fetching traffic for DEN...
+[OK] DEN: aircraft=92 airborne=48 ground=44
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:20:01.560747+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=118 airborne=103 ground=11
+Fetching traffic for DEN...
+[OK] DEN: aircraft=75 airborne=37 ground=38
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:30:02.010645+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=139 airborne=123 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=68 airborne=38 ground=30
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:40:01.806081+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=137 airborne=121 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=66 airborne=30 ground=36
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 07:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T19:50:01.565680+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=130 airborne=121 ground=5
+Fetching traffic for DEN...
+[OK] DEN: aircraft=66 airborne=34 ground=32
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:00:02.025461+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=147 airborne=121 ground=23
+Fetching traffic for DEN...
+[OK] DEN: aircraft=66 airborne=31 ground=35
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:10:01.138808+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=154 airborne=133 ground=18
+Fetching traffic for DEN...
+[OK] DEN: aircraft=61 airborne=34 ground=27
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:20:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:20:01.847829+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=136 airborne=120 ground=12
+Fetching traffic for DEN...
+[OK] DEN: aircraft=71 airborne=34 ground=37
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:30:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:30:01.297841+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=123 airborne=108 ground=10
+Fetching traffic for DEN...
+[OK] DEN: aircraft=74 airborne=33 ground=41
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:40:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:40:01.769278+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=124 airborne=107 ground=13
+Fetching traffic for DEN...
+[OK] DEN: aircraft=76 airborne=32 ground=44
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 08:50:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T20:50:01.381223+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=135 airborne=108 ground=25
+Fetching traffic for DEN...
+[OK] DEN: aircraft=78 airborne=26 ground=52
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:00:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T21:00:01.680671+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=124 airborne=108 ground=14
+Fetching traffic for DEN...
+[OK] DEN: aircraft=78 airborne=34 ground=44
+\nDone.\n
+
+=== TRAFFIC Fri Feb 20 09:10:01 PM UTC 2026 ===
+\nCollecting ADSB.lol traffic snapshots at 2026-02-20T21:10:01.205036+00:00\n
+Fetching traffic for MCO...
+[OK] MCO: aircraft=119 airborne=97 ground=18
+Fetching traffic for DEN...
+[OK] DEN: aircraft=77 airborne=33 ground=44
+\nDone.\n
+
