@@ -195,9 +195,9 @@ Notes:
 ## Cron schedule (current)
 
 ```cron
-*/10 * * * * /home/khaleel/PycharmProjects/CapstoneProject/scripts/collect_traffic.sh
-*/10 * * * * /home/khaleel/PycharmProjects/CapstoneProject/scripts/collect_delays.sh
-0 9-23/2 * * * /home/khaleel/PycharmProjects/CapstoneProject/scripts/collect_flights.sh
+*/10 * * * * /path/to/project/scripts/collect_traffic.sh
+*/10 * * * * /path/to/project/scripts/collect_delays.sh
+0 9-23/2 * * * /path/to/project/scripts/collect_flights.sh
 ```
 
 Notes:
