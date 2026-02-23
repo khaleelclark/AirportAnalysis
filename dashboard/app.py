@@ -619,9 +619,33 @@ with overview_tab:
     )
     
     airline_severity_map = {}
+    airline_range_map = {}
     if not flight_df.empty:
         flights_selected = flight_df[flight_df["airport_code"].isin(selected_airports)].copy()
         if not flights_selected.empty:
+            flights_selected_range = flights_selected[
+                flights_selected["collected_at_local"].between(start_dt, end_dt)
+            ].copy()
+            if not flights_selected_range.empty:
+                range_agg = (
+                    flights_selected_range.groupby("airport_code", as_index=False)
+                    .agg(
+                        flights_n=("delay_minutes", "size"),
+                        avg_delay_min=("delay_minutes", lambda s: s.clip(lower=0).mean()),
+                        cancel_rate=("cancelled", "mean"),
+                        divert_rate=("diverted", "mean"),
+                    )
+                )
+                airline_range_map = {
+                    r["airport_code"]: {
+                        "flights_n": int(r["flights_n"]),
+                        "avg_delay_min": round(float(r["avg_delay_min"]) if pd.notna(r["avg_delay_min"]) else 0.0, 1),
+                        "cancel_rate_pct": round(float(r["cancel_rate"]) * 100.0 if pd.notna(r["cancel_rate"]) else 0.0, 1),
+                        "divert_rate_pct": round(float(r["divert_rate"]) * 100.0 if pd.notna(r["divert_rate"]) else 0.0, 1),
+                    }
+                    for r in range_agg.to_dict(orient="records")
+                }
+
             latest_flight_snapshots = (
                 flights_selected.sort_values("collected_at")
                 .groupby("airport_code", as_index=False)
@@ -819,6 +843,7 @@ with overview_tab:
             collected_local = format_local_snapshot_time(pd.to_datetime(row["collected_at"], utc=True))
             traffic_row = traffic_latest_map.get(row["airport_code"])
             airline_row = airline_severity_map.get(row["airport_code"])
+            airline_range_row = airline_range_map.get(row["airport_code"])
             airline_max_today = longest_airline_today_map.get(row["airport_code"])
             longest_any_recorded = max(
                 [v for v in [longest_airline_all_time_map.get(row["airport_code"]), longest_faa_all_time_map.get(row["airport_code"])] if v is not None],
@@ -869,10 +894,14 @@ with overview_tab:
                 else:
                     airline_time = format_local_snapshot_time(pd.to_datetime(airline_row["snapshot_time"], utc=True))
                     st.write(f"**Airline Snapshot Time (Local):** {airline_time}")
+                    range_cancel_text = "N/A"
+                    if airline_range_row is not None:
+                        range_cancel_text = f"{airline_range_row['cancel_rate_pct']}%"
                     st.write(
                         f"**Airline Inputs:** Flights {airline_row['flights_n']}, "
                         f"Avg Delay {airline_row['avg_delay_min']} min, "
-                        f"Cancelled {airline_row['cancel_rate_pct']}%, "
+                        f"Cancelled {airline_row['cancel_rate_pct']}% (Latest Snapshot), "
+                        f"Cancelled {range_cancel_text} (Selected Time Range), "
                         f"Diverted {airline_row['divert_rate_pct']}%"
                     )
                 st.markdown("#### Current Operational Load")
@@ -943,21 +972,70 @@ with overview_tab:
                     st.plotly_chart(fig, width="stretch")
         
                 with a2:
+                    airline_snap["max_delay_hr_min"] = airline_snap["max_delay_min"].apply(format_minutes_hr_min)
+                    airline_snap["max_delay_hours"] = airline_snap["max_delay_min"] / 60.0
                     fig = px.line(
                         airline_snap,
                         x="collected_at_local",
-                        y="max_delay_min",
+                        y="max_delay_hours",
                         color="airport_code",
                         markers=True,
                         title="Longest Airline Delay By Snapshot",
+                        custom_data=["max_delay_hr_min", "max_delay_min"],
                         labels={
                             "collected_at_local": "Snapshot Time (Local)",
-                            "max_delay_min": "Longest Airline Delay (Minutes)",
+                            "max_delay_hours": "Longest Airline Delay (Hours)",
                             "airport_code": "Airport",
                         },
                     )
+                    fig.update_traces(
+                        hovertemplate=(
+                            "Airport: %{fullData.name}<br>"
+                            "Snapshot: %{x}<br>"
+                            "Delay: %{customdata[0]}<br>"
+                            "(%{customdata[1]:.0f} minutes)<extra></extra>"
+                        ),
+                    )
                     format_time_axis_12h(fig)
                     st.plotly_chart(fig, width="stretch")
+
+                daily_cancel = (
+                    flight_view.assign(local_date=flight_view["collected_at_local"].dt.date)
+                    .groupby(["local_date", "airport_code"], as_index=False)
+                    .agg(
+                        flights=("delay_minutes", "size"),
+                        cancelled_count=("cancelled", "sum"),
+                    )
+                )
+                daily_cancel["cancel_rate_pct"] = (
+                    (daily_cancel["cancelled_count"] / daily_cancel["flights"]).replace([pd.NA], 0).fillna(0) * 100.0
+                )
+                daily_cancel["local_date"] = pd.to_datetime(daily_cancel["local_date"])
+
+                fig = px.bar(
+                    daily_cancel,
+                    x="local_date",
+                    y="cancel_rate_pct",
+                    color="airport_code",
+                    barmode="group",
+                    custom_data=["cancelled_count", "flights"],
+                    title="Daily Airline Cancellation Rate Comparison",
+                    labels={
+                        "local_date": "Local Date",
+                        "cancel_rate_pct": "Cancellation Rate (%)",
+                        "airport_code": "Airport",
+                    },
+                )
+                fig.update_traces(
+                    hovertemplate=(
+                        "Date: %{x|%b %d}<br>"
+                        "Airport: %{fullData.name}<br>"
+                        "Cancellation Rate: %{y:.1f}%<br>"
+                        "Cancelled Flights: %{customdata[0]:.0f}<br>"
+                        "Flights Sampled: %{customdata[1]:.0f}<extra></extra>"
+                    )
+                )
+                st.plotly_chart(fig, width="stretch")
         
                 today_rows = []
                 for airport in selected_airports:
@@ -972,18 +1050,31 @@ with overview_tab:
                 today_df = pd.DataFrame(today_rows)
                 today_df = today_df[today_df["delay_minutes"].notna()]
                 if not today_df.empty:
+                    today_df["delay_hours"] = today_df["delay_minutes"] / 60.0
+                    today_df["delay_hr_min"] = today_df["delay_minutes"].apply(format_minutes_hr_min)
                     fig = px.bar(
                         today_df,
                         x="airport_code",
-                        y="delay_minutes",
+                        y="delay_hours",
                         color="metric",
+                        text="delay_hr_min",
+                        custom_data=["delay_hr_min", "delay_minutes"],
                         barmode="group",
                         title="Longest Delay Today Comparison",
                         labels={
                             "airport_code": "Airport",
-                            "delay_minutes": "Delay (Minutes)",
+                            "delay_hours": "Delay (Hours)",
                             "metric": "Metric",
                         },
+                    )
+                    fig.update_traces(
+                        textposition="outside",
+                        hovertemplate=(
+                            "Airport: %{x}<br>"
+                            "Metric: %{fullData.name}<br>"
+                            "Delay: %{customdata[0]}<br>"
+                            "(%{customdata[1]:.0f} minutes)<extra></extra>"
+                        ),
                     )
                     st.plotly_chart(fig, width="stretch")
         
