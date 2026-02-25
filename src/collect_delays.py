@@ -34,9 +34,9 @@ def _parse_minutes(text: Optional[str]) -> Optional[float]:
     t = text.lower()
 
     # Prefer explicit average markers if present.
-    avg = re.search(r"\b(?:avg\.?|average)\s*(\d{1,3})\s*(?:min|mins|minute|minutes)\b", t)
-    if avg:
-        return float(avg.group(1))
+    average_match = re.search(r"\b(?:avg\.?|average)\s*(\d{1,3})\s*(?:min|mins|minute|minutes)\b", t)
+    if average_match:
+        return float(average_match.group(1))
 
     # Fall back to first minute expression.
     m = re.search(r"\b(\d{1,3})\s*(?:min|mins|minute|minutes)\b", t)
@@ -91,7 +91,7 @@ def parse_airports(xml_text: str) -> tuple[dict[str, dict[str, Any]], str]:
                 continue
 
             reason = _first_text(elem, ("Reason",)) or ""
-            avg = _first_text(elem, ("Avg",))
+            average = _first_text(elem, ("Avg",))
             min_delay = _first_text(elem, ("Min",))
             max_delay = _first_text(elem, ("Max",))
             trend = _first_text(elem, ("Trend",))
@@ -106,7 +106,7 @@ def parse_airports(xml_text: str) -> tuple[dict[str, dict[str, Any]], str]:
             arr_dep_trend = _first_text(arr_dep, ("Trend",)) if arr_dep is not None else None
 
             minutes = (
-                _parse_duration_minutes(avg)
+                _parse_duration_minutes(average)
                 or _parse_duration_minutes(min_delay)
                 or _parse_duration_minutes(arr_dep_min)
             )
@@ -125,7 +125,7 @@ def parse_airports(xml_text: str) -> tuple[dict[str, dict[str, Any]], str]:
             event = {
                 "type": section_name,
                 "reason": reason,
-                "avg": avg,
+                "average": average,
                 "min": min_delay or arr_dep_min,
                 "max": max_delay or arr_dep_max,
                 "trend": trend or arr_dep_trend,
