@@ -68,16 +68,18 @@ with calc_tab:
           Per-airport live snapshot of severity, load, stress, longest delays, and FAA status.
         - **Airline Delay Impact**:
           Passenger-facing trend view from AirLabs delays, cancellations, and diversions.
-        - **Trend Lines (2×2)**:
-          Delay raw/rolling plus baseline/adjusted stress trends over time.
+        - **Hypothesis Check**:
+          Side-by-side summary metrics and MCO/DEN ratios for load-adjusted comparison.
+        - **Trend Lines**:
+          Rolling delay and load-adjusted stress trends plus direct MCO-minus-DEN stress gap.
         - **Traffic Load Vs Delay Severity**:
           Scatter view to evaluate delay severity at comparable load levels.
-        - **Delay Heatmap (Hour × Day Of Week)**:
-          Pattern view of when disruption tends to cluster.
+        - **Delay Timing Breakdown**:
+          Simpler weekday/hour comparisons showing when each airport is usually worse.
         - **Worst Time Periods**:
           Ranked tables of highest-stress days and hour blocks.
         - **Traffic Vs Delay Relationship**:
-          Correlation and scatter between aircraft volume and FAA delay severity.
+          Correlation strength summary between aircraft volume and FAA delay severity.
         - **Raw Delay Snapshots (Filtered)**:
           Traceability table of underlying rows used by the charts.
 
@@ -92,12 +94,12 @@ with calc_tab:
 
         ### 2) Airline Delay Severity Index (AirLabs, 0-5)
         Computed per airport from the latest AirLabs delay snapshot:
-        - `avg_delay_min = mean(max(delay_minutes, 0))`
+        - `average_delay_min = mean(max(delay_minutes, 0))`
         - `cancel_rate = cancelled_flights / total_flights`
         - `divert_rate = diverted_flights / total_flights`
 
         Score components:
-        - Delay component: `min(avg_delay_min / 20, 3.0)`
+        - Delay component: `min(average_delay_min / 20, 3.0)`
         - Cancellation component: `min(cancel_rate * 4.0, 1.5)`
         - Diversion component: `min(divert_rate * 2.0, 0.5)`
 
@@ -117,8 +119,8 @@ with calc_tab:
         ### 5) Load-Adjusted Stress Score
         Applies partial load normalization at each timestamp so busier airports get some grace,
         but not a full cancellation of load differences:
-        - `peer_avg_load = mean(traffic_load_effective across airports at same timestamp)`
-        - `relative_load_factor = traffic_load_effective / peer_avg_load`
+        - `peer_average_load = mean(traffic_load_effective across airports at same timestamp)`
+        - `relative_load_factor = traffic_load_effective / peer_average_load`
         - `load_grace_exponent = 0.7`
         - `load_adjusted_stress_score = operational_stress_score / (relative_load_factor ^ load_grace_exponent)`
 
@@ -150,9 +152,11 @@ with overview_tab:
             - **Load-Adjusted Stress Score**: Operational stress partially normalized by relative load at that moment
               (uses a grace exponent of `0.7`, so higher load gets some allowance but not a full pass).
               Use this for the fairest MCO vs DEN comparison when traffic differs.
-            - **Trend Lines (2×2)**:
-              Top row shows FAA delay severity (raw and rolling average).
-              Bottom row shows Operational Stress (baseline) and Load-Adjusted Stress (with load grace).
+            - **Hypothesis Check**:
+              Focuses on fair comparisons: load-adjusted stress, delay per 100 traffic load,
+              FAA-restriction rate, and MCO/DEN ratios.
+            - **Trend Lines**:
+              Shows rolling delay severity, rolling load-adjusted stress, and the MCO-minus-DEN stress gap.
             - **Longest Delay Today Metrics**:
               `Longest Airline Delay Today` comes from AirLabs flight delays.
               `Longest Recorded Delay (Any Source)` takes the largest value seen in your full collected history,
@@ -231,18 +235,22 @@ with overview_tab:
     AIRPORT_TIMEZONES = {
         "DEN": ZoneInfo("America/Denver"),
     }
+    AIRPORT_COLOR_MAP = {
+        "MCO": "#1f77b4",
+        "DEN": "#ff7f0e",
+    }
     
     
     def format_local_snapshot_time(ts: pd.Timestamp | None) -> str:
         if ts is None or pd.isna(ts):
             return "—"
-        return ts.tz_convert(LOCAL_TZ).strftime("%I:%M %p %b %d")
+        return ts.tz_convert(LOCAL_TZ).strftime("%I:%M %p %B %d")
 
     def format_snapshot_time_for_airport(ts: pd.Timestamp | None, airport_code: str | None) -> str:
         if ts is None or pd.isna(ts):
             return "—"
         tz = AIRPORT_TIMEZONES.get((airport_code or "").upper(), LOCAL_TZ)
-        return ts.tz_convert(tz).strftime("%I:%M %p %b %d")
+        return ts.tz_convert(tz).strftime("%I:%M %p %B %d")
 
 
     def format_faa_update_time_local(value) -> str:
@@ -276,7 +284,7 @@ with overview_tab:
     
     
     def format_time_axis_12h(fig):
-        fig.update_xaxes(tickformat="%I:%M %p<br>%b %d", hoverformat="%I:%M %p %b %d")
+        fig.update_xaxes(tickformat="%I:%M %p<br>%B %d", hoverformat="%I:%M %p %B %d")
         return fig
     
     
@@ -378,7 +386,7 @@ with overview_tab:
     
     delay_df["collected_at"] = pd.to_datetime(delay_df["collected_at"], utc=True)
     delay_df["collected_at_local"] = delay_df["collected_at"].dt.tz_convert(LOCAL_TZ)
-    delay_df["collected_at_local_label"] = delay_df["collected_at_local"].dt.strftime("%I:%M %p %b %d")
+    delay_df["collected_at_local_label"] = delay_df["collected_at_local"].dt.strftime("%I:%M %p %B %d")
     delay_df["source"] = delay_df["source"].fillna("UNKNOWN")
 
     for numeric_col in [
@@ -398,7 +406,7 @@ with overview_tab:
     if not traffic_df.empty:
         traffic_df["collected_at"] = pd.to_datetime(traffic_df["collected_at"], utc=True)
         traffic_df["collected_at_local"] = traffic_df["collected_at"].dt.tz_convert(LOCAL_TZ)
-        traffic_df["collected_at_local_label"] = traffic_df["collected_at_local"].dt.strftime("%I:%M %p %b %d")
+        traffic_df["collected_at_local_label"] = traffic_df["collected_at_local"].dt.strftime("%I:%M %p %B %d")
         for numeric_col in ["aircraft_count", "airborne_count", "on_ground_count", "altitude_median", "velocity_median"]:
             if numeric_col in traffic_df.columns:
                 traffic_df[numeric_col] = pd.to_numeric(traffic_df[numeric_col], errors="coerce")
@@ -606,8 +614,8 @@ with overview_tab:
     # Load-adjusted score applies partial load normalization.
     # Exponent < 1 gives higher-load airports some grace without fully cancelling load.
     LOAD_GRACE_EXPONENT = 0.7
-    filtered["peer_avg_load"] = filtered.groupby("collected_at")["traffic_load_effective"].transform("mean")
-    filtered["relative_load_factor"] = filtered["traffic_load_effective"] / filtered["peer_avg_load"]
+    filtered["peer_average_load"] = filtered.groupby("collected_at")["traffic_load_effective"].transform("mean")
+    filtered["relative_load_factor"] = filtered["traffic_load_effective"] / filtered["peer_average_load"]
     filtered["relative_load_factor"] = pd.to_numeric(filtered["relative_load_factor"], errors="coerce")
     filtered.loc[
         filtered["relative_load_factor"].isna() | (filtered["relative_load_factor"] <= 0),
@@ -649,7 +657,7 @@ with overview_tab:
                     flights_selected_range.groupby("airport_code", as_index=False)
                     .agg(
                         flights_n=("delay_minutes", "size"),
-                        avg_delay_min=("delay_minutes", lambda s: s.clip(lower=0).mean()),
+                        average_delay_min=("delay_minutes", lambda s: s.clip(lower=0).mean()),
                         cancel_rate=("cancelled", "mean"),
                         divert_rate=("diverted", "mean"),
                     )
@@ -657,9 +665,9 @@ with overview_tab:
                 airline_range_map = {
                     r["airport_code"]: {
                         "flights_n": int(r["flights_n"]),
-                        "avg_delay_min": round(float(r["avg_delay_min"]) if pd.notna(r["avg_delay_min"]) else 0.0, 1),
-                        "cancel_rate_pct": round(float(r["cancel_rate"]) * 100.0 if pd.notna(r["cancel_rate"]) else 0.0, 1),
-                        "divert_rate_pct": round(float(r["divert_rate"]) * 100.0 if pd.notna(r["divert_rate"]) else 0.0, 1),
+                        "average_delay_min": round(float(r["average_delay_min"]) if pd.notna(r["average_delay_min"]) else 0.0, 1),
+                        "cancel_rate_percent": round(float(r["cancel_rate"]) * 100.0 if pd.notna(r["cancel_rate"]) else 0.0, 1),
+                        "divert_rate_percent": round(float(r["divert_rate"]) * 100.0 if pd.notna(r["divert_rate"]) else 0.0, 1),
                     }
                     for r in range_agg.to_dict(orient="records")
                 }
@@ -682,11 +690,11 @@ with overview_tab:
                     continue
     
                 positive_delay = grp["delay_minutes"].clip(lower=0)
-                avg_delay = float(positive_delay.mean()) if positive_delay.notna().any() else 0.0
+                average_delay = float(positive_delay.mean()) if positive_delay.notna().any() else 0.0
                 cancel_rate = float(grp["cancelled"].mean())
                 divert_rate = float(grp["diverted"].mean())
     
-                delay_component = min(avg_delay / 20.0, 3.0)
+                delay_component = min(average_delay / 20.0, 3.0)
                 cancel_component = min(cancel_rate * 4.0, 1.5)
                 divert_component = min(divert_rate * 2.0, 0.5)
                 airline_severity = min(delay_component + cancel_component + divert_component, 5.0)
@@ -694,9 +702,9 @@ with overview_tab:
                 airline_severity_map[airport] = {
                     "score": round(airline_severity, 3),
                     "flights_n": flights_n,
-                    "avg_delay_min": round(avg_delay, 1),
-                    "cancel_rate_pct": round(cancel_rate * 100.0, 1),
-                    "divert_rate_pct": round(divert_rate * 100.0, 1),
+                    "average_delay_min": round(average_delay, 1),
+                    "cancel_rate_percent": round(cancel_rate * 100.0, 1),
+                    "divert_rate_percent": round(divert_rate * 100.0, 1),
                     "snapshot_time": grp["collected_at"].max(),
                 }
     
@@ -874,45 +882,65 @@ with overview_tab:
             with card_cols[i]:
                 st.markdown("<div style='padding: 0 12px;'>", unsafe_allow_html=True)
                 st.write(f"**Snapshot Time (Local):** {collected_local}")
-                st.metric(
-                    label=f"{row['airport_code']} Delay Severity Index (FAA)",
-                    value="—" if pd.isna(row["delay_index_best"]) else round(float(row["delay_index_best"]), 3),
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Airline Delay Severity Index",
-                    value="N/A" if airline_row is None else airline_row["score"],
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Traffic Load (Live Aircraft)",
-                    value=int(row["traffic_load_effective"]) if pd.notna(row["traffic_load_effective"]) else "N/A",
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Operational Stress Score",
-                    value="—" if pd.isna(row["operational_stress_score"]) else round(float(row["operational_stress_score"]), 3),
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Load-Adjusted Stress Score",
-                    value="—" if pd.isna(row["load_adjusted_stress_score"]) else round(float(row["load_adjusted_stress_score"]), 3),
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Longest Recorded Delay (Any Source)",
-                    value=format_minutes_hr_min(longest_any_recorded),
-                )
-                st.metric(
-                    label=f"{row['airport_code']} Longest Airline Delay Today",
-                    value=format_minutes_hr_min(airline_max_today),
-                )
+                st.markdown("#### Snapshot Metrics")
+                m11, m12 = st.columns(2)
+                with m11:
+                    st.metric(
+                        label=f"{row['airport_code']} Delay Severity Index (FAA)",
+                        value="—" if pd.isna(row["delay_index_best"]) else round(float(row["delay_index_best"]), 3),
+                    )
+                with m12:
+                    st.metric(
+                        label=f"{row['airport_code']} Airline Delay Severity Index",
+                        value="N/A" if airline_row is None else airline_row["score"],
+                    )
+
+                m21, m22 = st.columns(2)
+                with m21:
+                    st.metric(
+                        label=f"{row['airport_code']} Traffic Load (Live Aircraft)",
+                        value=int(row["traffic_load_effective"]) if pd.notna(row["traffic_load_effective"]) else "N/A",
+                    )
+                with m22:
+                    st.metric(
+                        label=f"{row['airport_code']} Load-Adjusted Stress Score",
+                        value="—" if pd.isna(row["load_adjusted_stress_score"]) else round(float(row["load_adjusted_stress_score"]), 3),
+                    )
+
+                st.markdown("#### Additional Metrics")
+                a11, a12 = st.columns(2)
+                with a11:
+                    st.metric(
+                        label=f"{row['airport_code']} Operational Stress Score",
+                        value="—" if pd.isna(row["operational_stress_score"]) else round(float(row["operational_stress_score"]), 3),
+                    )
+                with a12:
+                    st.metric(
+                        label=f"{row['airport_code']} Active FAA Restrictions",
+                        value=int(row["faa_event_count"]) if pd.notna(row.get("faa_event_count")) else 0,
+                    )
+
+                a21, a22 = st.columns(2)
+                with a21:
+                    st.metric(
+                        label=f"{row['airport_code']} Longest Recorded Delay (Any Source)",
+                        value=format_minutes_hr_min(longest_any_recorded),
+                    )
+                with a22:
+                    st.metric(
+                        label=f"{row['airport_code']} Longest Airline Delay Today",
+                        value=format_minutes_hr_min(airline_max_today),
+                    )
                 st.write(
                     f"**FAA Update Time (Local):** "
                     f"{format_faa_update_time_for_airport(row.get('faa_update_time'), airport_code)}"
                 )
-                st.write(f"**Active FAA Restrictions:** {int(row['faa_event_count']) if pd.notna(row.get('faa_event_count')) else 0}")
                 st.caption("[View FAA NASStatus details](https://nasstatus.faa.gov/)")
                 st.write(f"**FAA Status:** {row.get('faa_status', '—') if row.get('faa_status') else '—'}")
-                avg_delay_value = None if airline_row is None else airline_row.get("avg_delay_min")
+                average_delay_value = None if airline_row is None else airline_row.get("average_delay_min")
                 st.write(
-                    f"**Average Delay:** {format_minutes_hr_min(avg_delay_value)}"
-                    if avg_delay_value is not None and pd.notna(avg_delay_value)
+                    f"**Average Delay:** {format_minutes_hr_min(average_delay_value)}"
+                    if average_delay_value is not None and pd.notna(average_delay_value)
                     else "**Average Delay:** N/A"
                 )
                 if airline_row is None:
@@ -925,13 +953,13 @@ with overview_tab:
                     st.write(f"**Airline Snapshot Time (Local):** {airline_time}")
                     range_cancel_text = "N/A"
                     if airline_range_row is not None:
-                        range_cancel_text = f"{airline_range_row['cancel_rate_pct']}%"
+                        range_cancel_text = f"{airline_range_row['cancel_rate_percent']}%"
                     st.write(
                         f"**Airline Inputs:** Flights {airline_row['flights_n']}, "
-                        f"Avg Delay {airline_row['avg_delay_min']} min, "
-                        f"Cancelled {airline_row['cancel_rate_pct']}% (Latest Snapshot), "
+                        f"Average Delay {airline_row['average_delay_min']} min, "
+                        f"Cancelled {airline_row['cancel_rate_percent']}% (Latest Snapshot), "
                         f"Cancelled {range_cancel_text} (Selected Time Range), "
-                        f"Diverted {airline_row['divert_rate_pct']}%"
+                        f"Diverted {airline_row['divert_rate_percent']}%"
                     )
                 st.markdown("#### Current Operational Load")
                 if traffic_row is None:
@@ -952,7 +980,281 @@ with overview_tab:
                 st.markdown("</div>", unsafe_allow_html=True)
         
         st.divider()
+        # -----------------------
+        # Hypothesis-focused comparison
+        # -----------------------
+        st.subheader("Hypothesis Check: Is MCO Disproportionately Worse Than DEN?")
+        st.caption("This section combines FAA and airline-impact evidence with load-adjusted comparisons.")
 
+        hypothesis_df = filtered.copy()
+        hypothesis_df["delay_index_best"] = pd.to_numeric(hypothesis_df["delay_index_best"], errors="coerce")
+        hypothesis_df["traffic_load_effective"] = pd.to_numeric(hypothesis_df["traffic_load_effective"], errors="coerce")
+        hypothesis_df["load_adjusted_stress_score"] = pd.to_numeric(
+            hypothesis_df["load_adjusted_stress_score"], errors="coerce"
+        )
+        hypothesis_df["faa_event_count"] = pd.to_numeric(hypothesis_df["faa_event_count"], errors="coerce").fillna(0)
+        hypothesis_df["has_faa_restriction"] = hypothesis_df["faa_event_count"] > 0
+
+        hypothesis_summary = (
+            hypothesis_df.groupby("airport_code", as_index=False)
+            .agg(
+                snapshots=("airport_code", "size"),
+                average_delay_index=("delay_index_best", "mean"),
+                average_traffic_load=("traffic_load_effective", "mean"),
+                average_load_adjusted_stress=("load_adjusted_stress_score", "mean"),
+                faa_restriction_rate=("has_faa_restriction", "mean"),
+            )
+        )
+        hypothesis_summary["delay_per_100_load"] = (
+            hypothesis_summary["average_delay_index"] / (hypothesis_summary["average_traffic_load"] / 100.0)
+        )
+        hypothesis_summary["faa_restriction_rate_percent"] = hypothesis_summary["faa_restriction_rate"] * 100.0
+
+        airline_hypothesis = pd.DataFrame()
+        if not flight_df.empty:
+            airline_hypothesis = flight_df[flight_df["airport_code"].isin(selected_airports)].copy()
+            airline_hypothesis = airline_hypothesis[
+                airline_hypothesis["collected_at_local"].between(start_dt, end_dt)
+            ]
+            if not airline_hypothesis.empty:
+                airline_hypothesis["delay_positive"] = airline_hypothesis["delay_minutes"].clip(lower=0)
+                airline_summary = (
+                    airline_hypothesis.groupby("airport_code", as_index=False)
+                    .agg(
+                        airline_flights=("delay_minutes", "size"),
+                        average_airline_delay_min=("delay_positive", "mean"),
+                        cancel_rate=("cancelled", "mean"),
+                        divert_rate=("diverted", "mean"),
+                    )
+                )
+                airline_summary["average_airline_severity"] = (
+                    (airline_summary["average_airline_delay_min"].fillna(0) / 20.0).clip(upper=3.0) +
+                    (airline_summary["cancel_rate"].fillna(0) * 4.0).clip(upper=1.5) +
+                    (airline_summary["divert_rate"].fillna(0) * 2.0).clip(upper=0.5)
+                ).clip(upper=5.0)
+                airline_summary["cancel_rate_percent"] = airline_summary["cancel_rate"] * 100.0
+                airline_summary["divert_rate_percent"] = airline_summary["divert_rate"] * 100.0
+                hypothesis_summary = hypothesis_summary.merge(airline_summary, on="airport_code", how="left")
+
+        for col in [
+            "airline_flights",
+            "average_airline_delay_min",
+            "cancel_rate_percent",
+            "divert_rate_percent",
+            "average_airline_severity",
+        ]:
+            if col not in hypothesis_summary.columns:
+                hypothesis_summary[col] = pd.NA
+
+        hs_idx = hypothesis_summary.set_index("airport_code")
+
+        def build_ratio_df(metric_defs: list[tuple[str, str]]) -> pd.DataFrame:
+            rows = []
+            if {"MCO", "DEN"}.issubset(set(hs_idx.index)):
+                for metric_key, metric_label in metric_defs:
+                    den = hs_idx.at["DEN", metric_key]
+                    mco = hs_idx.at["MCO", metric_key]
+                    ratio = None
+                    if pd.notna(den) and den != 0 and pd.notna(mco):
+                        ratio = float(mco / den)
+                    rows.append({"metric": metric_label, "mco_vs_den_ratio": ratio})
+            ratio_df_local = pd.DataFrame(rows)
+            if not ratio_df_local.empty:
+                ratio_df_local["supports_mco_worse"] = ratio_df_local["mco_vs_den_ratio"] > 1.0
+            return ratio_df_local
+
+        st.markdown("### Airline Delay Comparison")
+        st.dataframe(
+            prettify_columns(
+                hypothesis_summary[
+                    [
+                        "airport_code",
+                        "airline_flights",
+                        "average_airline_delay_min",
+                        "cancel_rate_percent",
+                        "divert_rate_percent",
+                        "average_airline_severity",
+                    ]
+                ]
+            ),
+            width="stretch",
+        )
+        airline_ratio_df = build_ratio_df(
+            [
+                ("average_airline_delay_min", "Average Airline Delay (Minutes)"),
+                ("cancel_rate_percent", "Cancellation Rate (%)"),
+                ("average_airline_severity", "Airline Delay Severity"),
+            ]
+        )
+        if airline_ratio_df.empty or airline_ratio_df["mco_vs_den_ratio"].dropna().empty:
+            st.info("Not enough airline data in this range to compare MCO vs DEN.")
+        else:
+            fig = px.bar(
+                airline_ratio_df,
+                x="metric",
+                y="mco_vs_den_ratio",
+                color="supports_mco_worse",
+                title="Airline Delay Ratios: MCO vs DEN",
+                labels={
+                    "metric": "Metric",
+                    "mco_vs_den_ratio": "MCO / DEN Ratio",
+                    "supports_mco_worse": "Supports MCO Worse",
+                },
+                color_discrete_map={True: AIRPORT_COLOR_MAP["MCO"], False: AIRPORT_COLOR_MAP["DEN"]},
+            )
+            fig.add_hline(y=1.0, line_dash="dash", line_color="gray")
+            st.plotly_chart(fig, width="stretch")
+            airline_core = airline_ratio_df.loc[
+                airline_ratio_df["metric"] == "Airline Delay Severity", "mco_vs_den_ratio"
+            ].dropna()
+            if not airline_core.empty:
+                airline_verdict = "Supports hypothesis" if airline_core.iloc[0] > 1.0 else "Does not support hypothesis"
+                st.write(
+                    f"**Airline verdict:** {airline_verdict} "
+                    f"(MCO/DEN airline severity ratio = {airline_core.iloc[0]:.2f})."
+                )
+
+        st.markdown("### Operational Load Comparison")
+        st.dataframe(
+            prettify_columns(
+                hypothesis_summary[
+                    [
+                        "airport_code",
+                        "snapshots",
+                        "average_traffic_load",
+                        "average_delay_index",
+                        "delay_per_100_load",
+                        "average_load_adjusted_stress",
+                        "faa_restriction_rate_percent",
+                    ]
+                ]
+            ),
+            width="stretch",
+        )
+        operational_ratio_df = build_ratio_df(
+            [
+                ("average_traffic_load", "Average Traffic Load"),
+                ("average_delay_index", "Average Delay Severity Index"),
+                ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
+                ("average_load_adjusted_stress", "Load-Adjusted Stress"),
+                ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
+            ]
+        )
+        if not operational_ratio_df.empty:
+            fig = px.bar(
+                operational_ratio_df,
+                x="metric",
+                y="mco_vs_den_ratio",
+                color="supports_mco_worse",
+                title="Operational Ratios: MCO vs DEN",
+                labels={
+                    "metric": "Metric",
+                    "mco_vs_den_ratio": "MCO / DEN Ratio",
+                    "supports_mco_worse": "Supports MCO Worse",
+                },
+                color_discrete_map={True: AIRPORT_COLOR_MAP["MCO"], False: AIRPORT_COLOR_MAP["DEN"]},
+            )
+            fig.add_hline(y=1.0, line_dash="dash", line_color="gray")
+            st.plotly_chart(fig, width="stretch")
+            operational_core = operational_ratio_df.loc[
+                operational_ratio_df["metric"] == "Load-Adjusted Stress", "mco_vs_den_ratio"
+            ].dropna()
+            if not operational_core.empty:
+                operational_verdict = "Supports hypothesis" if operational_core.iloc[0] > 1.0 else "Does not support hypothesis"
+                st.write(
+                    f"**Operational verdict:** {operational_verdict} "
+                    f"(MCO/DEN load-adjusted stress ratio = {operational_core.iloc[0]:.2f})."
+                )
+
+        st.markdown("### Combined Evidence Comparison")
+        st.dataframe(
+            prettify_columns(
+                hypothesis_summary[
+                    [
+                        "airport_code",
+                        "snapshots",
+                        "average_traffic_load",
+                        "average_delay_index",
+                        "delay_per_100_load",
+                        "average_load_adjusted_stress",
+                        "faa_restriction_rate_percent",
+                        "airline_flights",
+                        "average_airline_delay_min",
+                        "cancel_rate_percent",
+                        "divert_rate_percent",
+                        "average_airline_severity",
+                    ]
+                ]
+            ),
+            width="stretch",
+        )
+        combined_ratio_df = build_ratio_df(
+            [
+                ("average_load_adjusted_stress", "Load-Adjusted Stress"),
+                ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
+                ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
+                ("average_airline_delay_min", "Average Airline Delay (Minutes)"),
+                ("cancel_rate_percent", "Cancellation Rate (%)"),
+                ("average_airline_severity", "Airline Delay Severity"),
+            ]
+        )
+        if not combined_ratio_df.empty:
+            fig = px.bar(
+                combined_ratio_df,
+                x="metric",
+                y="mco_vs_den_ratio",
+                color="supports_mco_worse",
+                title="Combined Ratios: MCO vs DEN",
+                labels={
+                    "metric": "Metric",
+                    "mco_vs_den_ratio": "MCO / DEN Ratio",
+                    "supports_mco_worse": "Supports MCO Worse",
+                },
+                color_discrete_map={True: AIRPORT_COLOR_MAP["MCO"], False: AIRPORT_COLOR_MAP["DEN"]},
+            )
+            fig.add_hline(y=1.0, line_dash="dash", line_color="gray")
+            st.plotly_chart(fig, width="stretch")
+
+            operational_core_series = combined_ratio_df.loc[
+                combined_ratio_df["metric"] == "Load-Adjusted Stress", "mco_vs_den_ratio"
+            ].dropna()
+            airline_core_series = combined_ratio_df.loc[
+                combined_ratio_df["metric"] == "Airline Delay Severity", "mco_vs_den_ratio"
+            ].dropna()
+
+            operational_core = float(operational_core_series.iloc[0]) if not operational_core_series.empty else None
+            airline_core = float(airline_core_series.iloc[0]) if not airline_core_series.empty else None
+
+            if operational_core is not None and airline_core is not None:
+                combined_ratio = float((operational_core + airline_core) / 2.0)
+                if operational_core > 1.0 and airline_core > 1.0:
+                    verdict_text = "supports the hypothesis on both operational and airline sides"
+                elif operational_core > 1.0 and airline_core <= 1.0:
+                    verdict_text = "is mixed: operational evidence supports the hypothesis, but airline evidence does not"
+                elif operational_core <= 1.0 and airline_core > 1.0:
+                    verdict_text = "is mixed: airline evidence supports the hypothesis, but operational evidence does not"
+                else:
+                    verdict_text = "does not support the hypothesis on either operational or airline side"
+
+                st.write(
+                    f"**Combined verdict:** Evidence {verdict_text}. "
+                    f"Operational ratio = {operational_core:.2f}, airline ratio = {airline_core:.2f}, "
+                    f"mean core ratio = {combined_ratio:.2f}."
+                )
+            elif operational_core is not None:
+                verdict_text = "supports the hypothesis" if operational_core > 1.0 else "does not support the hypothesis"
+                st.write(
+                    f"**Combined verdict:** Airline-side core metric is unavailable in this range. "
+                    f"Operational evidence {verdict_text} (ratio = {operational_core:.2f})."
+                )
+            elif airline_core is not None:
+                verdict_text = "supports the hypothesis" if airline_core > 1.0 else "does not support the hypothesis"
+                st.write(
+                    f"**Combined verdict:** Operational core metric is unavailable in this range. "
+                    f"Airline evidence {verdict_text} (ratio = {airline_core:.2f})."
+                )
+
+        st.divider()
         # -----------------------
         # FAA status history
         # -----------------------
@@ -1047,19 +1349,20 @@ with overview_tab:
             )
             fig.update_traces(
                 hovertemplate=(
-                    "Date: %{x|%b %d}<br>"
+                    "Date: %{x|%B %d}<br>"
                     "Airport: %{fullData.name}<br>"
                     "Delayed Snapshots: %{y:.0f}<br>"
                     "Total Snapshots: %{customdata[0]:.0f}<extra></extra>"
                 )
             )
+            fig.update_xaxes(tickformat="%B %d")
             st.plotly_chart(fig, width="stretch")
 
             with st.expander("Show FAA status log"):
                 status_log = faa_status_history.copy()
                 status_log = status_log[status_log["faa_event_count"] > 0].copy()
                 status_log["collected_at_local_label"] = status_log["collected_at_local"].dt.strftime(
-                    "%I:%M %p %b %d"
+                    "%I:%M %p %B %d"
                 )
                 status_log["faa_update_time_local_label"] = status_log["faa_update_time"].apply(
                     format_faa_update_time_local
@@ -1084,19 +1387,18 @@ with overview_tab:
                     )
 
         st.divider()
-        
         # -----------------------
         # Airline Impact
         # -----------------------
         st.subheader("Airline Delay Impact")
         st.caption("This section uses live AirLabs delay feed values to show passenger-facing delay impact.")
-        
+
         if flight_df.empty:
             st.info("No flight delay data found yet. Run `python src/collect_flights.py`.")
         else:
             flight_view = flight_df[flight_df["airport_code"].isin(selected_airports)].copy()
             flight_view = flight_view[flight_view["collected_at_local"].between(start_dt, end_dt)]
-        
+
             if flight_view.empty:
                 st.info("No flight delay rows in the selected time range.")
             else:
@@ -1105,18 +1407,18 @@ with overview_tab:
                     flight_view.groupby(["airport_code", "collected_at_local"], as_index=False)
                     .agg(
                         flights=("delay_minutes", "size"),
-                        avg_delay_min=("delay_positive", "mean"),
+                        average_delay_min=("delay_positive", "mean"),
                         max_delay_min=("delay_positive", "max"),
                         cancel_rate=("cancelled", "mean"),
                         divert_rate=("diverted", "mean"),
                     )
                 )
                 airline_snap["airline_delay_severity_index"] = (
-                    (airline_snap["avg_delay_min"].fillna(0) / 20.0).clip(upper=3.0) +
-                    (airline_snap["cancel_rate"].fillna(0) * 4.0).clip(upper=1.5) +
-                    (airline_snap["divert_rate"].fillna(0) * 2.0).clip(upper=0.5)
+                        (airline_snap["average_delay_min"].fillna(0) / 20.0).clip(upper=3.0) +
+                        (airline_snap["cancel_rate"].fillna(0) * 4.0).clip(upper=1.5) +
+                        (airline_snap["divert_rate"].fillna(0) * 2.0).clip(upper=0.5)
                 ).clip(upper=5.0)
-        
+
                 a1, a2 = st.columns(2)
                 with a1:
                     fig = px.line(
@@ -1134,7 +1436,7 @@ with overview_tab:
                     )
                     format_time_axis_12h(fig)
                     st.plotly_chart(fig, width="stretch")
-        
+
                 with a2:
                     airline_snap["max_delay_hr_min"] = airline_snap["max_delay_min"].apply(format_minutes_hr_min)
                     airline_snap["max_delay_hours"] = airline_snap["max_delay_min"] / 60.0
@@ -1171,28 +1473,28 @@ with overview_tab:
                         cancelled_count=("cancelled", "sum"),
                     )
                 )
-                daily_cancel["cancel_rate_pct"] = (
-                    (daily_cancel["cancelled_count"] / daily_cancel["flights"]).replace([pd.NA], 0).fillna(0) * 100.0
+                daily_cancel["cancel_rate_percent"] = (
+                        (daily_cancel["cancelled_count"] / daily_cancel["flights"]).replace([pd.NA], 0).fillna(0) * 100.0
                 )
                 daily_cancel["local_date"] = pd.to_datetime(daily_cancel["local_date"])
 
                 fig = px.bar(
                     daily_cancel,
                     x="local_date",
-                    y="cancel_rate_pct",
+                    y="cancel_rate_percent",
                     color="airport_code",
                     barmode="group",
                     custom_data=["cancelled_count", "flights"],
                     title="Daily Airline Cancellation Rate Comparison",
                     labels={
                         "local_date": "Local Date",
-                        "cancel_rate_pct": "Cancellation Rate (%)",
+                        "cancel_rate_percent": "Cancellation Rate (%)",
                         "airport_code": "Airport",
                     },
                 )
                 fig.update_traces(
                     hovertemplate=(
-                        "Date: %{x|%b %d}<br>"
+                        "Date: %{x|%B %d}<br>"
                         "Airport: %{fullData.name}<br>"
                         "Cancellation Rate: %{y:.1f}%<br>"
                         "Cancelled Flights: %{customdata[0]:.0f}<br>"
@@ -1200,7 +1502,7 @@ with overview_tab:
                     )
                 )
                 st.plotly_chart(fig, width="stretch")
-        
+
                 today_rows = []
                 for airport in selected_airports:
                     airline_today = longest_airline_today_map.get(airport)
@@ -1210,7 +1512,7 @@ with overview_tab:
                     )
                     today_rows.append({"airport_code": airport, "metric": "Longest Airline Delay Today", "delay_minutes": airline_today})
                     today_rows.append({"airport_code": airport, "metric": "Longest Recorded Delay (Any Source)", "delay_minutes": any_recorded})
-        
+
                 today_df = pd.DataFrame(today_rows)
                 today_df = today_df[today_df["delay_minutes"].notna()]
                 if not today_df.empty:
@@ -1241,10 +1543,8 @@ with overview_tab:
                         ),
                     )
                     st.plotly_chart(fig, width="stretch")
-        
+
         st.divider()
-        
-        
         # -----------------------
         # Trends + Rolling Average
         # -----------------------
@@ -1275,26 +1575,9 @@ with overview_tab:
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
         )
         
-        row1_col1, row1_col2 = st.columns(2)
-        
-        with row1_col1:
-            fig = px.line(
-                trend,
-                x="collected_at_local",
-                y="delay_index_best",
-                color="airport_code",
-                markers=True,
-                title="Delay Severity Index Over Time (Raw)",
-                labels={
-                    "collected_at_local": "Snapshot Time (Local)",
-                    "delay_index_best": "Delay Severity Index",
-                    "airport_code": "Airport",
-                },
-            )
-            format_time_axis_12h(fig)
-            st.plotly_chart(fig, width='stretch')
-        
-        with row1_col2:
+        trend_col1, trend_col2 = st.columns(2)
+
+        with trend_col1:
             fig = px.line(
                 trend,
                 x="collected_at_local",
@@ -1307,30 +1590,12 @@ with overview_tab:
                     "delay_index_roll": "Delay Severity Index",
                     "airport_code": "Airport",
                 },
+                color_discrete_map=AIRPORT_COLOR_MAP,
             )
             format_time_axis_12h(fig)
-            st.plotly_chart(fig, width='stretch')
-        
-        row2_col1, row2_col2 = st.columns(2)
-        
-        with row2_col1:
-            fig = px.line(
-                trend,
-                x="collected_at_local",
-                y="stress_roll",
-                color="airport_code",
-                markers=True,
-                title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
-                labels={
-                    "collected_at_local": "Snapshot Time (Local)",
-                    "stress_roll": "Operational Stress Score",
-                    "airport_code": "Airport",
-                },
-            )
-            format_time_axis_12h(fig)
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, width="stretch")
 
-        with row2_col2:
+        with trend_col2:
             fig = px.line(
                 trend,
                 x="collected_at_local",
@@ -1343,10 +1608,11 @@ with overview_tab:
                     "load_adjusted_stress_roll": "Load-Adjusted Stress Score",
                     "airport_code": "Airport",
                 },
+                color_discrete_map=AIRPORT_COLOR_MAP,
             )
             format_time_axis_12h(fig)
-            st.plotly_chart(fig, width='stretch')
-        
+            st.plotly_chart(fig, width="stretch")
+
         st.divider()
         
         
@@ -1354,196 +1620,140 @@ with overview_tab:
         # Load vs Delay (Efficiency curve)
         # -----------------------
         st.subheader("Traffic Load vs Delay Severity")
-        st.caption("If one airport has higher delay severity at similar load, that suggests disproportionate operational pain.")
+        st.caption("Interpretation focus: if MCO stays above DEN at similar load bands, that supports disproportionate pain.")
         
         load_vs_delay = trend.dropna(subset=["traffic_load_effective", "delay_index_best"]).copy()
         
         if load_vs_delay.empty:
             st.info("Not enough valid load + delay data points yet to plot this chart.")
         else:
-            fig = px.scatter(
-                load_vs_delay,
-                x="traffic_load_effective",
-                y="delay_index_best",
-                color="airport_code",
-                hover_data=["collected_at_local_label", "window_from_utc", "window_to_utc", "dep_total", "arr_total"],
-                title="Delay Severity Index vs Traffic Load (Each Point = One Snapshot)",
-                labels={
-                    "traffic_load_effective": "Traffic Load",
-                    "delay_index_best": "Delay Severity Index",
-                    "airport_code": "Airport",
-                    "collected_at_local_label": "Snapshot Time (Local)",
-                    "window_from_utc": "Window From",
-                    "window_to_utc": "Window To",
-                    "dep_total": "Departures Counted",
-                    "arr_total": "Arrivals Counted",
-                },
-            )
-            st.plotly_chart(fig, width='stretch')
-        
-        st.divider()
-        
-        
-        # -----------------------
-        # Heatmap: Hour x Day-of-week
-        # -----------------------
-        st.subheader("Delay Heatmap (Hour × Day Of Week)")
-        st.caption("Highlights when disruption typically happens.")
-        
-        if filtered["date_utc"].nunique() < 2:
-            st.info("Heatmap will be much more meaningful after you collect at least a couple days of data.")
-        else:
-            # Order DOW nicely
-            dow_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
-            hm_cols = st.columns(len(selected_airports))
-            for i, airport in enumerate(selected_airports):
-                with hm_cols[i]:
-                    df_a = filtered[filtered["airport_code"] == airport].copy()
-                    df_a["dow_utc"] = pd.Categorical(df_a["dow_utc"], categories=dow_order, ordered=True)
-        
-                    pivot = df_a.pivot_table(
-                        index="hour_utc",
-                        columns="dow_utc",
-                        values="delay_index_best",
-                        aggfunc="mean"
-                    )
-        
-                    fig = px.imshow(
-                        pivot,
-                        aspect="auto",
-                        title=f"{airport} Average Delay Severity By Hour And Day Of Week (Local)"
-                    )
-                    st.plotly_chart(fig, width='stretch')
-        
-        st.divider()
-        
-        
-        # -----------------------
-        # Worst Day / Worst Hour
-        # -----------------------
-        st.subheader("Worst Time Periods")
-        
-        worst_day = (
-            filtered.groupby(["airport_code", "date_utc"], as_index=False)
-            .agg(avg_delay_index=("delay_index_best", "mean"),
-                 avg_stress=("operational_stress_score", "mean"),
-                 avg_load=("traffic_load_effective", "mean"),
-                 samples=("id", "count"))
-            .sort_values(["avg_stress", "avg_delay_index"], ascending=False)
-        )
+            c1, c2 = st.columns(2)
 
-        worst_hour = (
-            filtered.groupby(["airport_code", "dow_utc", "hour_utc"], as_index=False)
-            .agg(avg_delay_index=("delay_index_best", "mean"),
-                 avg_stress=("operational_stress_score", "mean"),
-                 avg_load=("traffic_load_effective", "mean"),
-                 samples=("id", "count"))
-            .sort_values(["avg_stress", "avg_delay_index"], ascending=False)
-        )
-        
-        w1, w2 = st.columns(2)
-        with w1:
-            st.write("### Worst Days (highest stress)")
-            st.dataframe(prettify_columns(worst_day.head(10)), width='stretch')
-        
-        with w2:
-            st.write("### Worst Hour Blocks (Local, highest stress)")
-            st.dataframe(prettify_columns(worst_hour.head(10)), width='stretch')
-        
-        st.divider()
-        
-        
-        # -----------------------
-        # Traffic correlation: aircraft_count vs delay index
-        # -----------------------
-        st.subheader("Traffic vs Delay Relationship")
-        st.caption("Positive correlation means higher aircraft volume tends to coincide with higher delay severity.")
-        
-        if traffic_df.empty:
-            st.info("No traffic data found yet. Run `python src/collect_traffic.py` a few times.")
-        else:
-            # Filter traffic to selected airports and time range
-            t = traffic_df[traffic_df["airport_code"].isin(selected_airports)].copy()
-            t = t[t["collected_at_local"].between(start_dt, end_dt)].sort_values(["airport_code", "collected_at"])
-        
-            # We'll align by nearest timestamp per airport using merge_asof
-            d = filtered.sort_values(["airport_code", "collected_at"]).copy()
-        
-            merged_list = []
-            for airport in selected_airports:
-                d_a = d[d["airport_code"] == airport].sort_values("collected_at")
-                t_a = t[t["airport_code"] == airport].sort_values("collected_at")
-        
-                if d_a.empty or t_a.empty:
-                    continue
-        
-                # Nearest traffic snapshot within 20 minutes
-                m = pd.merge_asof(
-                    d_a,
-                    t_a,
-                    on="collected_at",
-                    direction="nearest",
-                    tolerance=pd.Timedelta("20min"),
-                    suffixes=("", "_traffic")
-                )
-                merged_list.append(m)
-        
-            if not merged_list:
-                st.info("Not enough overlapping delay+traffic data yet (need both collectors running).")
-            else:
-                merged = pd.concat(merged_list, ignore_index=True)
-        
-                # Correlation per airport
-                corr_rows = []
-                for airport in selected_airports:
-                    sub = merged[merged["airport_code"] == airport].dropna(subset=["aircraft_count", "delay_index_best"])
-                    corr = safe_corr(sub["aircraft_count"], sub["delay_index_best"])
-                    corr_rows.append({"airport_code": airport, "corr_aircraft_vs_delay": corr, "points": len(sub)})
-        
-                st.write("### Correlation Summary (Aircraft Count Vs Delay Severity)")
-                st.dataframe(prettify_columns(pd.DataFrame(corr_rows)), width='stretch')
-        
+            with c1:
                 fig = px.scatter(
-                    merged,
-                    x="aircraft_count",
+                    load_vs_delay,
+                    x="traffic_load_effective",
                     y="delay_index_best",
                     color="airport_code",
-                    hover_data=["collected_at_local_label", "traffic_load_effective", "airborne_count", "on_ground_count"],
-                    title="Delay Severity Vs Aircraft Count (Nearest Timestamp Match Within 20 Minutes)",
+                    opacity=0.45,
+                    hover_data=["collected_at_local_label", "window_from_utc", "window_to_utc", "dep_total", "arr_total"],
+                    title="Raw Snapshots: Delay Severity vs Traffic Load",
                     labels={
-                        "aircraft_count": "Aircraft Count",
+                        "traffic_load_effective": "Traffic Load",
                         "delay_index_best": "Delay Severity Index",
                         "airport_code": "Airport",
                         "collected_at_local_label": "Snapshot Time (Local)",
-                        "traffic_load_effective": "Traffic Load",
-                        "airborne_count": "Airborne Count",
-                        "on_ground_count": "On Ground Count",
+                        "window_from_utc": "Window From",
+                        "window_to_utc": "Window To",
+                        "dep_total": "Departures Counted",
+                        "arr_total": "Arrivals Counted",
                     },
+                    color_discrete_map=AIRPORT_COLOR_MAP,
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width="stretch")
+
+            with c2:
+                bucket_input = load_vs_delay[["airport_code", "traffic_load_effective", "delay_index_best"]].copy()
+                bucket_input = bucket_input.sort_values("traffic_load_effective")
+                bucket_count = min(8, bucket_input["traffic_load_effective"].nunique())
+                if bucket_count >= 2:
+                    bucket_input["load_bucket"] = pd.qcut(
+                        bucket_input["traffic_load_effective"],
+                        q=bucket_count,
+                        duplicates="drop",
+                    )
+                    by_bucket = (
+                        bucket_input.groupby(["airport_code", "load_bucket"], as_index=False, observed=True)
+                        .agg(
+                            average_delay_index=("delay_index_best", "mean"),
+                            samples=("delay_index_best", "size"),
+                        )
+                    )
+                    by_bucket["load_bucket_mid"] = by_bucket["load_bucket"].apply(
+                        lambda i: float((i.left + i.right) / 2.0)
+                    )
+                    fig = px.line(
+                        by_bucket.sort_values("load_bucket_mid"),
+                        x="load_bucket_mid",
+                        y="average_delay_index",
+                        color="airport_code",
+                        markers=True,
+                        title="Same-Load Comparison: Average Delay by Load Band",
+                        labels={
+                            "load_bucket_mid": "Traffic Load Band Midpoint",
+                            "average_delay_index": "Average Delay Severity Index",
+                            "airport_code": "Airport",
+                        },
+                        color_discrete_map=AIRPORT_COLOR_MAP,
+                        hover_data=["samples"],
+                    )
+                    st.plotly_chart(fig, width="stretch")
+                else:
+                    st.info("Need more variation in traffic load to build same-load comparison bands.")
         
         st.divider()
         
         
         # -----------------------
-        # Raw table expander
+        # Delay timing breakdown
         # -----------------------
-        with st.expander("Show raw delay_snapshots (filtered)"):
-            filtered_raw = filtered.copy()
-            filtered_raw["collected_at_local_label"] = filtered_raw["collected_at_local"].dt.strftime("%I:%M %p %b %d")
-            show_cols = [
-                "airport_code", "collected_at_local_label",
-                "source",
-                "window_from_utc", "window_to_utc",
-                "delay_index", "dep_delay_index", "arr_delay_index",
-                "delay_index_best",
-                "delay_median_minutes", "dep_median_delay_minutes", "arr_median_delay_minutes",
-                "dep_total", "arr_total",
-                "traffic_load_effective",
-                "operational_stress_score",
-            ]
-            st.dataframe(
-                prettify_columns(filtered_raw.sort_values("collected_at_local", ascending=False)[show_cols]),
-                width='stretch'
-            )
+        st.subheader("Delay Timing Breakdown")
+        st.caption("Easier read: where each airport tends to run worse by weekday and by hour.")
+
+        dow_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        timing_df = filtered.dropna(subset=["delay_index_best"]).copy()
+        timing_df["dow_utc"] = pd.Categorical(timing_df["dow_utc"], categories=dow_order, ordered=True)
+
+        if timing_df.empty:
+            st.info("Not enough delay data in this range to show timing breakdown.")
+        else:
+            t1, t2 = st.columns(2)
+
+            with t1:
+                by_dow = (
+                    timing_df.groupby(["dow_utc", "airport_code"], as_index=False, observed=True)
+                    .agg(average_delay_index=("delay_index_best", "mean"))
+                    .sort_values("dow_utc")
+                )
+                fig = px.bar(
+                    by_dow,
+                    x="dow_utc",
+                    y="average_delay_index",
+                    color="airport_code",
+                    barmode="group",
+                    title="Average Delay Severity by Day of Week",
+                    labels={
+                        "dow_utc": "Day of Week (Local)",
+                        "average_delay_index": "Average Delay Severity Index",
+                        "airport_code": "Airport",
+                    },
+                    color_discrete_map=AIRPORT_COLOR_MAP,
+                )
+                st.plotly_chart(fig, width="stretch")
+
+            with t2:
+                by_hour = (
+                    timing_df.groupby(["hour_utc", "airport_code"], as_index=False)
+                    .agg(average_delay_index=("delay_index_best", "mean"))
+                    .sort_values("hour_utc")
+                )
+                by_hour = by_hour[by_hour["hour_utc"] >= 7]
+                if by_hour.empty:
+                    st.info("No hourly data available after restricting to hours 7-23.")
+                else:
+                    fig = px.line(
+                        by_hour,
+                        x="hour_utc",
+                        y="average_delay_index",
+                        color="airport_code",
+                        markers=True,
+                        title="Average Delay Severity by Hour of Day (Hours 7-23)",
+                        labels={
+                            "hour_utc": "Hour of Day (Local)",
+                            "average_delay_index": "Average Delay Severity Index",
+                            "airport_code": "Airport",
+                        },
+                        color_discrete_map=AIRPORT_COLOR_MAP,
+                    )
+                    fig.update_xaxes(dtick=1)
+                    st.plotly_chart(fig, width="stretch")
