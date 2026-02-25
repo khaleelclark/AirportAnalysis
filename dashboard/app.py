@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 import subprocess
 import sys
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import plotly.express as px
@@ -227,14 +228,23 @@ with overview_tab:
     
     
     LOCAL_TZ = datetime.now().astimezone().tzinfo
+    AIRPORT_TIMEZONES = {
+        "DEN": ZoneInfo("America/Denver"),
+    }
     
     
     def format_local_snapshot_time(ts: pd.Timestamp | None) -> str:
         if ts is None or pd.isna(ts):
             return "—"
         return ts.tz_convert(LOCAL_TZ).strftime("%I:%M %p %b %d")
-    
-    
+
+    def format_snapshot_time_for_airport(ts: pd.Timestamp | None, airport_code: str | None) -> str:
+        if ts is None or pd.isna(ts):
+            return "—"
+        tz = AIRPORT_TIMEZONES.get((airport_code or "").upper(), LOCAL_TZ)
+        return ts.tz_convert(tz).strftime("%I:%M %p %b %d")
+
+
     def format_faa_update_time_local(value) -> str:
         if value is None or pd.isna(value):
             return "—"
@@ -242,6 +252,14 @@ with overview_tab:
         if pd.isna(ts):
             return "—"
         return format_local_snapshot_time(ts)
+
+    def format_faa_update_time_for_airport(value, airport_code: str | None) -> str:
+        if value is None or pd.isna(value):
+            return "—"
+        ts = pd.to_datetime(value, utc=True, errors="coerce")
+        if pd.isna(ts):
+            return "—"
+        return format_snapshot_time_for_airport(ts, airport_code)
     
     
     def format_minutes_hr_min(value) -> str:
@@ -840,7 +858,11 @@ with overview_tab:
             card_cols = st.columns(len(latest_by_airport))
         
         for i, row in enumerate(latest_by_airport.to_dict(orient="records")):
-            collected_local = format_local_snapshot_time(pd.to_datetime(row["collected_at"], utc=True))
+            airport_code = row["airport_code"]
+            collected_local = format_snapshot_time_for_airport(
+                pd.to_datetime(row["collected_at"], utc=True),
+                airport_code,
+            )
             traffic_row = traffic_latest_map.get(row["airport_code"])
             airline_row = airline_severity_map.get(row["airport_code"])
             airline_range_row = airline_range_map.get(row["airport_code"])
@@ -880,8 +902,12 @@ with overview_tab:
                     label=f"{row['airport_code']} Longest Airline Delay Today",
                     value=format_minutes_hr_min(airline_max_today),
                 )
-                st.write(f"**FAA Update Time (Local):** {format_faa_update_time_local(row.get('faa_update_time'))}")
+                st.write(
+                    f"**FAA Update Time (Local):** "
+                    f"{format_faa_update_time_for_airport(row.get('faa_update_time'), airport_code)}"
+                )
                 st.write(f"**Active FAA Restrictions:** {int(row['faa_event_count']) if pd.notna(row.get('faa_event_count')) else 0}")
+                st.caption("[View FAA NASStatus details](https://nasstatus.faa.gov/)")
                 st.write(f"**FAA Status:** {row.get('faa_status', '—') if row.get('faa_status') else '—'}")
                 avg_delay_value = None if airline_row is None else airline_row.get("avg_delay_min")
                 st.write(
@@ -892,7 +918,10 @@ with overview_tab:
                 if airline_row is None:
                     st.write("**Airline Snapshot:** N/A")
                 else:
-                    airline_time = format_local_snapshot_time(pd.to_datetime(airline_row["snapshot_time"], utc=True))
+                    airline_time = format_snapshot_time_for_airport(
+                        pd.to_datetime(airline_row["snapshot_time"], utc=True),
+                        airport_code,
+                    )
                     st.write(f"**Airline Snapshot Time (Local):** {airline_time}")
                     range_cancel_text = "N/A"
                     if airline_range_row is not None:
@@ -908,7 +937,10 @@ with overview_tab:
                 if traffic_row is None:
                     st.write("No traffic snapshot available for this airport in selected time range.")
                 else:
-                    traffic_time_local = format_local_snapshot_time(pd.to_datetime(traffic_row["collected_at"], utc=True))
+                    traffic_time_local = format_snapshot_time_for_airport(
+                        pd.to_datetime(traffic_row["collected_at"], utc=True),
+                        airport_code,
+                    )
                     st.write(f"**Traffic Snapshot Time (Local):** {traffic_time_local}")
                     lc1, lc2, lc3 = st.columns(3)
                     with lc1:
@@ -919,6 +951,138 @@ with overview_tab:
                         st.metric("On Ground", int(traffic_row["on_ground_count"]) if pd.notna(traffic_row.get("on_ground_count")) else "—")
                 st.markdown("</div>", unsafe_allow_html=True)
         
+        st.divider()
+
+        # -----------------------
+        # FAA status history
+        # -----------------------
+        st.subheader("FAA Status History")
+        st.caption("Historical FAA status snapshots for each airport in the selected time range.")
+
+        faa_status_history = filtered.copy()
+        faa_status_history["faa_event_count"] = pd.to_numeric(
+            faa_status_history["faa_event_count"], errors="coerce"
+        ).fillna(0)
+        faa_status_history["faa_status_clean"] = (
+            faa_status_history["faa_status"].fillna("").astype(str).str.strip()
+        )
+        faa_status_history.loc[
+            faa_status_history["faa_status_clean"] == "",
+            "faa_status_clean"
+        ] = "Unknown / Missing"
+
+        if faa_status_history.empty:
+            st.info("No FAA status snapshots available in the selected range.")
+        else:
+            status_counts = (
+                faa_status_history.groupby(["airport_code", "faa_status_clean"], as_index=False)
+                .size()
+                .rename(columns={"size": "snapshot_count"})
+                .sort_values(["snapshot_count", "airport_code"], ascending=[False, True])
+            )
+
+            chart_col1, chart_col2 = st.columns(2)
+
+            with chart_col1:
+                fig = px.bar(
+                    status_counts,
+                    x="faa_status_clean",
+                    y="snapshot_count",
+                    color="airport_code",
+                    barmode="group",
+                    title="FAA Status Snapshot Counts By Airport",
+                    labels={
+                        "faa_status_clean": "FAA Status",
+                        "snapshot_count": "Snapshots",
+                        "airport_code": "Airport",
+                    },
+                )
+                fig.update_xaxes(categoryorder="total descending")
+                st.plotly_chart(fig, width="stretch")
+
+            with chart_col2:
+                timeline_df = faa_status_history.sort_values(["airport_code", "collected_at"]).copy()
+                fig = px.line(
+                    timeline_df,
+                    x="collected_at_local",
+                    y="faa_event_count",
+                    color="airport_code",
+                    markers=True,
+                    title="Active FAA Restriction Count Over Time",
+                    labels={
+                        "collected_at_local": "Snapshot Time (Local)",
+                        "faa_event_count": "Active FAA Restrictions",
+                        "airport_code": "Airport",
+                    },
+                )
+                format_time_axis_12h(fig)
+                st.plotly_chart(fig, width="stretch")
+
+            delayed_daily = (
+                faa_status_history.assign(
+                    local_date=faa_status_history["collected_at_local"].dt.date,
+                    has_delay=faa_status_history["faa_event_count"] > 0,
+                )
+                .groupby(["local_date", "airport_code"], as_index=False)
+                .agg(
+                    delayed_snapshots=("has_delay", "sum"),
+                    total_snapshots=("has_delay", "size"),
+                )
+            )
+            delayed_daily["local_date"] = pd.to_datetime(delayed_daily["local_date"])
+
+            fig = px.bar(
+                delayed_daily,
+                x="local_date",
+                y="delayed_snapshots",
+                color="airport_code",
+                barmode="group",
+                custom_data=["total_snapshots"],
+                title="Daily FAA Delayed Snapshot Count",
+                labels={
+                    "local_date": "Local Date",
+                    "delayed_snapshots": "Snapshots With Active FAA Restrictions",
+                    "airport_code": "Airport",
+                },
+            )
+            fig.update_traces(
+                hovertemplate=(
+                    "Date: %{x|%b %d}<br>"
+                    "Airport: %{fullData.name}<br>"
+                    "Delayed Snapshots: %{y:.0f}<br>"
+                    "Total Snapshots: %{customdata[0]:.0f}<extra></extra>"
+                )
+            )
+            st.plotly_chart(fig, width="stretch")
+
+            with st.expander("Show FAA status log"):
+                status_log = faa_status_history.copy()
+                status_log = status_log[status_log["faa_event_count"] > 0].copy()
+                status_log["collected_at_local_label"] = status_log["collected_at_local"].dt.strftime(
+                    "%I:%M %p %b %d"
+                )
+                status_log["faa_update_time_local_label"] = status_log["faa_update_time"].apply(
+                    format_faa_update_time_local
+                )
+                log_cols = [
+                    "airport_code",
+                    "collected_at_local_label",
+                    "faa_update_time_local_label",
+                    "faa_event_count",
+                    "faa_status_clean",
+                    "delay_index_best",
+                    "delay_median_minutes",
+                ]
+                if status_log.empty:
+                    st.info("No FAA-restricted snapshots in this selected time range.")
+                else:
+                    st.dataframe(
+                        prettify_columns(
+                            status_log.sort_values("collected_at_local", ascending=False)[log_cols]
+                        ),
+                        width="stretch",
+                    )
+
         st.divider()
         
         # -----------------------
@@ -1102,11 +1266,11 @@ with overview_tab:
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
         )
         
-        trend["sucks_roll"] = (
+        trend["stress_roll"] = (
             trend.groupby("airport_code")["operational_stress_score"]
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
         )
-        trend["load_adjusted_sucks_roll"] = (
+        trend["load_adjusted_stress_roll"] = (
             trend.groupby("airport_code")["load_adjusted_stress_score"]
             .transform(lambda s: s.rolling(rolling_window, min_periods=1).mean())
         )
@@ -1153,13 +1317,13 @@ with overview_tab:
             fig = px.line(
                 trend,
                 x="collected_at_local",
-                y="sucks_roll",
+                y="stress_roll",
                 color="airport_code",
                 markers=True,
                 title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
                 labels={
                     "collected_at_local": "Snapshot Time (Local)",
-                    "sucks_roll": "Operational Stress Score",
+                    "stress_roll": "Operational Stress Score",
                     "airport_code": "Airport",
                 },
             )
@@ -1170,13 +1334,13 @@ with overview_tab:
             fig = px.line(
                 trend,
                 x="collected_at_local",
-                y="load_adjusted_sucks_roll",
+                y="load_adjusted_stress_roll",
                 color="airport_code",
                 markers=True,
                 title=f"Load-Adjusted Stress Score (Rolling Average, {rolling_window} Points)",
                 labels={
                     "collected_at_local": "Snapshot Time (Local)",
-                    "load_adjusted_sucks_roll": "Load-Adjusted Stress Score",
+                    "load_adjusted_stress_roll": "Load-Adjusted Stress Score",
                     "airport_code": "Airport",
                 },
             )
@@ -1263,19 +1427,19 @@ with overview_tab:
         worst_day = (
             filtered.groupby(["airport_code", "date_utc"], as_index=False)
             .agg(avg_delay_index=("delay_index_best", "mean"),
-                 avg_sucks=("operational_stress_score", "mean"),
+                 avg_stress=("operational_stress_score", "mean"),
                  avg_load=("traffic_load_effective", "mean"),
                  samples=("id", "count"))
-            .sort_values(["avg_sucks", "avg_delay_index"], ascending=False)
+            .sort_values(["avg_stress", "avg_delay_index"], ascending=False)
         )
-        
+
         worst_hour = (
             filtered.groupby(["airport_code", "dow_utc", "hour_utc"], as_index=False)
             .agg(avg_delay_index=("delay_index_best", "mean"),
-                 avg_sucks=("operational_stress_score", "mean"),
+                 avg_stress=("operational_stress_score", "mean"),
                  avg_load=("traffic_load_effective", "mean"),
                  samples=("id", "count"))
-            .sort_values(["avg_sucks", "avg_delay_index"], ascending=False)
+            .sort_values(["avg_stress", "avg_delay_index"], ascending=False)
         )
         
         w1, w2 = st.columns(2)
