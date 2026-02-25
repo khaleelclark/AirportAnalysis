@@ -1,14 +1,79 @@
 # MCO vs DEN Airport Operations Dashboard
 
-Live capstone project comparing Orlando (MCO) vs Denver (DEN) using operational data, traffic intensity, and airline delay impact.
+Capstone project comparing Orlando (MCO) vs Denver (DEN) with live operational restrictions, live traffic load, and airline delay impact.
 
-## Quick Start (3 Commands)
+## Overview
+
+This project tests a practical hypothesis:
+
+> Is MCO performing worse than DEN in ways not fully explained by traffic volume alone?
+
+To evaluate that, the pipeline continuously collects and visualizes:
+- FAA operational restrictions (delay programs, ground stops, closures)
+- Live airspace traffic snapshots near each airport
+- Flight-level airline delay/cancel/diversion signals
+
+## Tech Stack
+
+- Python 3.12
+- Streamlit + Plotly + Pandas
+- SQLite (`data/aviation.db`)
+
+## Data Sources
+
+- FAA NASStatus API
+- ADSB.lol (live traffic)
+- AirLabs Delay API
+
+## Project Structure
+
+- `dashboard/app.py`: Streamlit dashboard
+- `src/db.py`: schema/bootstrap
+- `src/collect_delays.py`: FAA collector
+- `src/collect_traffic.py`: traffic collector
+- `src/collect_flights.py`: AirLabs collector
+- `migrations/*.sql`: schema updates
+- `scripts/*.sh`: scheduled collector wrappers
+- `tests/test_basic.py`: parser/scoring unit tests
+
+## Quick Start
 
 ### Linux / macOS
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
+```
+
+Set your AirLabs key in `.env`:
+
+```env
+AIRLABS_API_KEY=your_key_here
+AIRLABS_AIRPORTS=MCO,DEN
+```
+
+Initialize DB:
+
+```bash
+.venv/bin/python src/db.py
+sqlite3 data/aviation.db ".read migrations/002_add_flight_snapshots.sql"
+sqlite3 data/aviation.db ".read migrations/003_provider_source_schema.sql"
+sqlite3 data/aviation.db ".read migrations/004_add_delay_legacy_columns.sql"
+```
+
+Run collectors once:
+
+```bash
+.venv/bin/python src/collect_delays.py
+.venv/bin/python src/collect_traffic.py
+.venv/bin/python src/collect_flights.py
+```
+
+Start dashboard:
+
+```bash
 .venv/bin/streamlit run dashboard/app.py
 ```
 
@@ -18,181 +83,28 @@ pip install -r requirements.txt
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-streamlit run dashboard\app.py
+copy .env.example .env
 ```
 
-### Windows (Command Prompt)
+Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\streamlit`.
 
-```bat
-py -3 -m venv .venv
-.venv\Scripts\activate.bat
-pip install -r requirements.txt
-streamlit run dashboard\app.py
-```
+## Dashboard Sections
 
-Before running collectors, add your AirLabs key in `.env`:
+- Dashboard Overview
+- About This Project
+- Calculation Details
 
-```env
-AIRLABS_API_KEY=your_key_here
-AIRLABS_AIRPORTS=MCO,DEN
-```
+Metric definitions and formulas are documented directly in the Calculation Details tab.
 
-Or copy the template:
-
-```bash
-cp .env.example .env
-```
-
-## What this project does
-
-This project tests the hypothesis that MCO can perform worse than DEN in ways that are not fully explained by traffic load alone.
-
-It collects and visualizes:
-- FAA operational restrictions (ground delays/stops/closures)
-- Live airspace traffic near each airport
-- Flight-level airline delay signals
-
-## Tech stack
-
-- Python 3.12 (venv)
-- SQLite (`data/aviation.db`)
-- Streamlit (`dashboard/app.py`)
-- Plotly + Pandas
-
-## Data sources
-
-- FAA NASStatus API (airport operational events)
-- Live Airspace Traffic API (aircraft counts around airports)
-- AirLabs Delay API (flight-level delay/cancel/diversion)
-
-## Current project structure
-
-- `src/collect_delays.py`: FAA collector
-- `src/collect_traffic.py`: traffic collector
-- `src/collect_flights.py`: AirLabs delay collector
-- `src/db.py`: schema bootstrap
-- `migrations/002_add_flight_snapshots.sql`
-- `migrations/003_provider_source_schema.sql`
-- `migrations/004_add_delay_legacy_columns.sql`
-- `dashboard/app.py`: Streamlit app
-- `scripts/collect_delays.sh`
-- `scripts/collect_traffic.sh`
-- `scripts/collect_flights.sh`
-
-## Metrics used in the dashboard
-
-- `Delay Severity Index (FAA)`: operational severity from FAA events
-- `Airline Delay Severity Index`: 0-5 index from live flight delay/cancel/diversion mix
-- `Traffic Load`: live aircraft count in airspace
-- `Operational Stress Score`: combines FAA severity and traffic load
-- `Load-Adjusted Stress Score`: partially adjusts stress by relative load (grace factor) to compare airports fairly
-- `Longest Airline Delay Today`
-- `Longest Delay Today (Any Source)`
-
-Detailed formulas are documented in the dashboard’s `Calculation Details` tab.
-
-## Setup
-
-1. Create and activate venv.
-
-Linux / macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Windows (PowerShell):
-
-```powershell
-py -3 -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-
-Windows (Command Prompt):
-
-```bat
-py -3 -m venv .venv
-.venv\Scripts\activate.bat
-```
-
-2. Install dependencies.
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Configure environment.
-
-Create/update `.env`:
-
-```env
-AIRLABS_API_KEY=your_key_here
-AIRLABS_AIRPORTS=MCO,DEN
-```
-
-4. Initialize DB schema.
-
-```bash
-.venv/bin/python src/db.py
-sqlite3 data/aviation.db ".read migrations/002_add_flight_snapshots.sql"
-sqlite3 data/aviation.db ".read migrations/003_provider_source_schema.sql"
-sqlite3 data/aviation.db ".read migrations/004_add_delay_legacy_columns.sql"
-```
-
-## Run collectors manually
-
-Linux / macOS:
-
-```bash
-.venv/bin/python src/collect_delays.py
-.venv/bin/python src/collect_traffic.py
-.venv/bin/python src/collect_flights.py
-```
-
-Windows (PowerShell or Command Prompt):
-
-```bat
-.venv\Scripts\python src\collect_delays.py
-.venv\Scripts\python src\collect_traffic.py
-.venv\Scripts\python src\collect_flights.py
-```
-
-## Run dashboard
-
-Linux / macOS:
-
-```bash
-.venv/bin/streamlit run dashboard/app.py
-```
-
-Windows (PowerShell or Command Prompt):
-
-```bat
-.venv\Scripts\streamlit run dashboard\app.py
-```
-
-## Testing
-
-Run tests locally (no API calls are made by the current test suite):
-
-Linux / macOS:
+## Tests
 
 ```bash
 .venv/bin/pytest -q
 ```
 
-Windows (PowerShell or Command Prompt):
+Current tests are deterministic parser/scoring checks and do not call live APIs.
 
-```bat
-.venv\Scripts\pytest -q
-```
-
-Notes:
-- Tests in `tests/test_basic.py` validate parser/scoring logic for FAA, traffic, and AirLabs collectors.
-- These tests use synthetic inputs and do not consume AirLabs request credits.
-
-## Cron schedule (current)
+## Scheduling (Cron)
 
 ```cron
 */10 * * * * /path/to/project/scripts/collect_traffic.sh
@@ -200,23 +112,37 @@ Notes:
 0 9-23/2 * * * /path/to/project/scripts/collect_flights.sh
 ```
 
-Notes:
-- Traffic + FAA collect every 10 minutes.
-- AirLabs runs every 2 hours from 9 AM to 11 PM to stay within API budget.
+- Traffic and FAA: every 10 minutes
+- AirLabs: every 2 hours from 9 AM to 11 PM
 
-## Dashboard pages
+## Troubleshooting
 
-- `Dashboard Overview`: live metrics and charts
-- `About This Project`: hypothesis, scope, and source context
-- `Calculation Details`: metric formulas and assumptions
+### Dashboard shows no data
 
-## Known limitations
+- Run collectors manually at least once.
+- Confirm `data/aviation.db` exists and migrations were applied.
 
-- FAA and airline delays represent different concepts and should be interpreted together.
-- Single snapshots can be noisy; trend windows and repeated observations are stronger evidence.
-- API payload shape can vary; collectors include defensive parsing but may require maintenance.
+### AirLabs collector fails
 
-## Reset database (optional)
+- Confirm `AIRLABS_API_KEY` is set in `.env`.
+- Verify API quota/limits.
+
+### IDE shows stubborn pandas warnings
+
+PyCharm can produce false positives on heavy chained pandas expressions (for example DataFrame/Series overload confusion). Runtime checks are the source of truth here:
+
+```bash
+.venv/bin/python -m py_compile dashboard/app.py
+.venv/bin/pytest -q
+```
+
+## Known Limitations
+
+- FAA severity and airline delay severity measure different concepts and should be interpreted together.
+- Single snapshots are noisy; trends and repeated observations are more meaningful.
+- Upstream API payloads can change and may require parser maintenance.
+
+## Optional: Reset Database
 
 ```bash
 rm -f data/aviation.db
