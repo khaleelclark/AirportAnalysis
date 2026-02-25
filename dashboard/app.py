@@ -24,12 +24,11 @@ with about_tab:
     st.markdown(
         """
         ### Central Question 
-        Are the delays experienced at MCO (Orlando International Airport) proportionate to it's operational load, or does the airport exhibit disproportionate delay patterns when compared to another airport that has more negative delay factors contributing to it, like DEN (Denver International Airport)?
+        Are delays at MCO (Orlando International Airport) proportionate to operational load, or does MCO perform disproportionately worse than DEN (Denver International Airport) after controlling for traffic pressure?
         
         ### Project Hypothesis
         Based on repeated personal travel experience, MCO appears to deliver a worse operational experience than DEN.
-        This project tests that claim objectively by comparing live delay severity, airline delay impact, traffic load,
-        and longest-delay events across both airports over time.
+        This project tests that claim with live FAA restrictions, live traffic load, and airline delay/cancellation/diversion outcomes across both airports over time.
 
         ### Data Sources
         - **FAA NASStatus API** for airport-level delay programs and restrictions
@@ -45,11 +44,18 @@ with about_tab:
         - **Delay Severity Index (FAA Operational):** 0 means no active FAA restriction; higher means more severe operational restriction.
         - **Airline Delay Severity Index:** live airline-impact score from delays/cancellations/diversions.
         - **Traffic Load:** live aircraft count in airspace near each airport.
-        - **Operational Stress Score:** combined measure of traffic pressure and delay severity.
+        - **Operational Stress Score:** combined measure of traffic pressure and FAA delay severity.
+        - **Load-Adjusted Stress Score:** operational stress normalized by relative load to support fair MCO vs DEN comparison.
+
+        ### How The Dashboard Tests The Hypothesis
+        - **Airline Delay Comparison:** checks passenger-facing outcomes (delay minutes, cancellation rate, airline severity).
+        - **Operational Load Comparison:** checks FAA severity and load-adjusted operational strain.
+        - **Combined Evidence Comparison:** merges airline and operational signals, then reports a dynamic verdict (supports, mixed, or does not support).
 
         ### Scope Notes
         - This dashboard is intentionally scoped to **MCO** and **DEN** for the capstone.
         - FAA severity and airline delay severity are related but distinct signals; both are shown for transparency.
+        - One snapshot can be noisy, so trend and ratio sections are emphasized over single-point readings.
         """
     )
 
@@ -66,25 +72,26 @@ with calc_tab:
           Quick comparison of which airport currently leads key risk indicators.
         - **Latest Airport Snapshot**:
           Per-airport live snapshot of severity, load, stress, longest delays, and FAA status.
+        - **FAA Status History**:
+          Status timeline, delayed-snapshot counts, and restriction log for FAA events.
         - **Airline Delay Impact**:
           Passenger-facing trend view from AirLabs delays, cancellations, and diversions.
         - **Hypothesis Check**:
-          Side-by-side summary metrics and MCO/DEN ratios for load-adjusted comparison.
+          Three focused comparisons: airline-only, operational-only, and combined evidence.
         - **Trend Lines**:
-          Rolling delay and load-adjusted stress trends plus direct MCO-minus-DEN stress gap.
+          Rolling delay and rolling load-adjusted stress trends over time.
         - **Traffic Load Vs Delay Severity**:
-          Scatter view to evaluate delay severity at comparable load levels.
+          Raw scatter plus same-load band comparison to judge fairness at similar traffic.
         - **Delay Timing Breakdown**:
-          Simpler weekday/hour comparisons showing when each airport is usually worse.
+          Weekday and hour-of-day comparisons showing when each airport is usually worse.
         - **Worst Time Periods**:
           Ranked tables of highest-stress days and hour blocks.
         - **Traffic Vs Delay Relationship**:
           Correlation strength summary between aircraft volume and FAA delay severity.
-        - **Raw Delay Snapshots (Filtered)**:
           Traceability table of underlying rows used by the charts.
 
-        ### 1) FAA Delay Severity Index (Operational)
-        Derived from FAA NASStatus event types:
+        ### 1) Latest Airport Snapshot Metrics
+        FAA Delay Severity Index comes from FAA NASStatus event types:
         - `0`: No active FAA restriction
         - `2`: Arrival/Departure delay program
         - `3`: Ground Delay Program
@@ -92,47 +99,89 @@ with calc_tab:
         - `5`: Airport closure
         If multiple FAA events exist at once, the index uses the **maximum** severity.
 
-        ### 2) Airline Delay Severity Index (AirLabs, 0-5)
-        Computed per airport from the latest AirLabs delay snapshot:
+        Airline Delay Severity Index (0-5) is:
         - `average_delay_min = mean(max(delay_minutes, 0))`
         - `cancel_rate = cancelled_flights / total_flights`
         - `divert_rate = diverted_flights / total_flights`
+        - `airline_severity = min(min(average_delay_min / 20, 3.0) + min(cancel_rate * 4.0, 1.5) + min(divert_rate * 2.0, 0.5), 5.0)`
 
-        Score components:
-        - Delay component: `min(average_delay_min / 20, 3.0)`
-        - Cancellation component: `min(cancel_rate * 4.0, 1.5)`
-        - Diversion component: `min(divert_rate * 2.0, 0.5)`
-
-        Final score:
-        - `airline_severity = min(delay_component + cancellation_component + diversion_component, 5.0)`
-
-        ### 3) Traffic Load
-        Primary load signal is live aircraft count from traffic snapshots:
-        - `traffic_load_effective = aircraft_count`
-        Fallback when needed:
-        - `traffic_load_effective = dep_total + arr_total`
-
-        ### 4) Operational Stress Score
-        Baseline traffic pressure + FAA severity:
-        - `operational_stress_score = (1 + faa_delay_severity_index) * (traffic_load_effective / 100)`
-
-        ### 5) Load-Adjusted Stress Score
-        Applies partial load normalization at each timestamp so busier airports get some grace,
-        but not a full cancellation of load differences:
+        Traffic and stress metrics:
+        - `traffic_load_effective = aircraft_count` (fallback: `dep_total + arr_total`)
+        - `operational_stress_score = (1 + delay_severity_index) * (traffic_load_effective / 100)`
         - `peer_average_load = mean(traffic_load_effective across airports at same timestamp)`
         - `relative_load_factor = traffic_load_effective / peer_average_load`
-        - `load_grace_exponent = 0.7`
-        - `load_adjusted_stress_score = operational_stress_score / (relative_load_factor ^ load_grace_exponent)`
+        - `load_adjusted_stress_score = operational_stress_score / (relative_load_factor ^ 0.7)`
 
-        Interpretation:
-        - If an airport stays worse after this adjustment, that suggests disproportionate operational pain beyond just being busier.
-
-        ### 6) Longest Delay Metrics
+        Longest delay metrics:
         - **Longest Airline Delay Today**: max flight `delay_minutes` today (local date).
         - **Longest Recorded Delay (Any Source)**: max of:
           airline longest delay,
           FAA event delay range (max delay, fallback to min delay),
           across the full collected history.
+
+        ### 2) FAA Status History
+        Built from FAA snapshots in the selected range:
+        - Status counts by airport
+        - Active FAA restriction count over time
+        - Daily delayed snapshots where `faa_event_count > 0`
+        - Log table shows only snapshots with active restrictions
+
+        ### 3) Airline Delay Impact
+        Uses flight-level rows in selected range:
+        - Airline delay severity trend over time
+        - Longest airline delay trend
+        - Daily cancellation rate
+        - Longest delay comparison bars
+
+        ### 4) Hypothesis Check Ratios
+        The hypothesis section compares MCO vs DEN as:
+        - `ratio = metric_at_MCO / metric_at_DEN`
+        - `ratio > 1.0`: supports "MCO worse" for that metric
+        - `ratio <= 1.0`: does not support "MCO worse" for that metric
+
+        Airline Delay Comparison metrics:
+        - `average_airline_delay_min`
+        - `cancel_rate_percent`
+        - `average_airline_severity`
+
+        Operational Load Comparison metrics:
+        - `average_traffic_load`
+        - `average_delay_index`
+        - `delay_per_100_load`
+        - `average_load_adjusted_stress`
+        - `faa_restriction_rate_percent`
+
+        Combined Evidence verdict uses two core ratios:
+        - `operational_core = ratio(average_load_adjusted_stress)`
+        - `airline_core = ratio(average_airline_severity)`
+        - `combined_core_mean = mean(operational_core, airline_core)` when both exist
+        It reports whether evidence supports operational, airline, both, mixed, or neither.
+
+        ### 5) Trend Lines
+        Rolling time-series by airport:
+        - Delay Severity Index rolling average
+        - Load-Adjusted Stress Score rolling average
+
+        ### 6) Traffic Load Vs Delay Severity
+        Two views in selected range:
+        - Raw snapshot scatter (`traffic_load_effective` vs `delay_index_best`)
+        - Same-load bucket comparison (average delay by load band)
+
+        ### 7) Delay Timing Breakdown
+        Timing charts are aggregated from FAA delay severity snapshots:
+        - Day-of-week chart: average delay severity by local weekday and airport
+        - Hour chart: average delay severity by local hour and airport,
+          restricted to hours `7-23` for readability
+
+        ### 8) Worst Time Periods
+        Ranked aggregates:
+        - Worst days by average stress then average delay
+        - Worst hour blocks by average stress then average delay
+
+        ### 9) Traffic Vs Delay Relationship
+        Nearest-time matched delay + traffic rows:
+        - Pearson correlation by airport
+        - Correlation strength comparison chart
         """
     )
 
@@ -152,15 +201,28 @@ with overview_tab:
             - **Load-Adjusted Stress Score**: Operational stress partially normalized by relative load at that moment
               (uses a grace exponent of `0.7`, so higher load gets some allowance but not a full pass).
               Use this for the fairest MCO vs DEN comparison when traffic differs.
-            - **Hypothesis Check**:
-              Focuses on fair comparisons: load-adjusted stress, delay per 100 traffic load,
-              FAA-restriction rate, and MCO/DEN ratios.
-            - **Trend Lines**:
-              Shows rolling delay severity, rolling load-adjusted stress, and the MCO-minus-DEN stress gap.
             - **Longest Delay Today Metrics**:
               `Longest Airline Delay Today` comes from AirLabs flight delays.
               `Longest Recorded Delay (Any Source)` takes the largest value seen in your full collected history,
               across airline delays and FAA event delay ranges.
+            - **FAA Status History**:
+              Shows FAA status counts, active restriction trend, daily delayed snapshots, and restriction log history.
+            - **Airline Delay Impact**:
+              Shows airline severity trend, longest airline delays, and daily cancellation rates.
+            - **Hypothesis Check**:
+              Includes three sections in order:
+              Airline Delay Comparison, Operational Load Comparison, and Combined Evidence Comparison.
+              Each section shows MCO/DEN ratios and its own verdict.
+            - **Trend Lines**:
+              Shows rolling delay severity and rolling load-adjusted stress.
+            - **Traffic Load Vs Delay Severity**:
+              Use raw scatter and same-load bands together to judge fairness at similar traffic levels.
+            - **Delay Timing Breakdown**:
+              Day-of-week view plus hour-of-day view (hours 7-23) for easier reading.
+            - **Worst Time Periods**:
+              Ranked tables highlight highest average stress days and hour blocks.
+            - **Traffic Vs Delay Relationship**:
+              Correlation section shows how strongly traffic volume and delay severity move together.
             - **How To Interpret Quickly**:
               If MCO has a higher **Load-Adjusted Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
               If MCO is only worse when load spikes, then traffic volume may be the main driver.
