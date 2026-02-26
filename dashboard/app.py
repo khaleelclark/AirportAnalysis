@@ -39,7 +39,7 @@ with about_tab:
         ### Refresh Cadence
         - FAA Delays: every **10 minutes**
         - Traffic: every **10 minutes**
-        - Airline Delay: every **2 hours** (from **9 AM to 11 PM** local)
+        - Airline Delay: checked every **10 minutes**, collected at ~**2-hour cadence** per airport within each airport's **local 9 AM to 11 PM** window
 
         ### Key Metrics
         - **Delay Severity Index (FAA Operational):** 0 means no active FAA restriction; higher means more severe operational restriction.
@@ -51,6 +51,7 @@ with about_tab:
         - **Airline Delay Comparison:** checks passenger-facing outcomes (delay minutes, cancellation rate, airline severity).
         - **Operational Load Comparison:** checks FAA severity and operational strain.
         - **Combined Evidence Comparison:** merges airline and operational signals, then reports a dynamic verdict (supports, mixed, or does not support).
+        - **DEN Outperformance Callouts:** explicitly flags when DEN carries higher load but still shows better delay efficiency overall and by day.
 
         ### Scope Notes
         - This dashboard is intentionally scoped to **MCO** and **DEN** for the capstone.
@@ -152,6 +153,7 @@ with calc_tab:
         - `airline_core = ratio(average_airline_severity)`
         - `combined_core_mean = mean(operational_core, airline_core)` when both exist
         It reports whether evidence supports operational, airline, both, mixed, or neither.
+        Additional context callouts are shown when DEN is busier but still more efficient.
 
         ### 5) Trend Lines
         Rolling time-series by airport:
@@ -208,7 +210,7 @@ with overview_tab:
               Airline Delay Comparison, Operational Load Comparison, and Combined Evidence Comparison.
               Each section shows MCO/DEN ratios and its own verdict.
             - **Trend Lines**:
-              Shows rolling delay severity and rolling load-adjusted stress.
+              Shows rolling delay severity and rolling operational stress.
             - **Traffic Load Vs Delay Severity**:
               Use raw scatter and same-load bands together to judge fairness at similar traffic levels.
             - **Delay Timing Breakdown**:
@@ -221,7 +223,9 @@ with overview_tab:
               If MCO has a higher **Operational Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
               If MCO is only worse when load spikes, then traffic volume may be the main driver.
             - **Cadence**:
-              FAA Delays every 10 minutes, Traffic every 10 minutes, Airline Delay every 2 hours (9 AM to 11 PM local).
+              FAA Delays every 10 minutes, Traffic every 10 minutes.
+              Airline collector runs every 10 minutes but only stores data at ~2-hour intervals per airport
+              during each airport's local 9 AM to 11 PM window.
             - **Important Limitation**:
               One snapshot can be noisy. Use trend lines and repeated observations before drawing conclusions.
             """
@@ -1101,7 +1105,7 @@ with overview_tab:
         # Hypothesis-focused comparison
         # -----------------------
         st.subheader("Hypothesis Check: Is MCO Disproportionately Worse Than DEN?")
-        st.caption("This section combines FAA and airline-impact evidence with load-adjusted comparisons.")
+        st.caption("This section combines FAA and airline-impact evidence with traffic-normalized comparisons.")
 
         hypothesis_df = filtered.copy()
         hypothesis_df["delay_index_best"] = pd.to_numeric(hypothesis_df["delay_index_best"], errors="coerce")
