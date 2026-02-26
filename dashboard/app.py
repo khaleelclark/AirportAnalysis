@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sqlite3
 from datetime import datetime
 import subprocess
@@ -39,7 +40,8 @@ with about_tab:
         ### Refresh Cadence
         - FAA Delays: every **10 minutes**
         - Traffic: every **10 minutes**
-        - Airline Delay: checked every **10 minutes**, collected at ~**2-hour cadence** per airport within each airport's **local 9 AM to 11 PM** window
+        - Airline Delay: collector runs every **10 minutes**, but AirLabs API calls are **strictly throttled to 2-hour minimum intervals per airport**, and only during each airport's **local 9 AM to 11 PM** window
+        - Manual sync from the dashboard can force an immediate AirLabs call (intended for on-demand checks)
 
         ### Key Metrics
         - **Delay Severity Index (FAA Operational):** 0 means no active FAA restriction; higher means more severe operational restriction.
@@ -73,23 +75,18 @@ with calc_tab:
           Quick comparison of which airport currently leads key risk indicators.
         - **Latest Airport Snapshot**:
           Per-airport live snapshot of severity, load, stress, longest delays, and FAA status.
+        - **Hypothesis Check**:
+          Three focused comparisons: airline-only, operational-only, and combined evidence.
         - **FAA Status History**:
           Status timeline, delayed-snapshot counts, and restriction log for FAA events.
         - **Airline Delay Impact**:
           Passenger-facing trend view from AirLabs delays, cancellations, and diversions.
-        - **Hypothesis Check**:
-          Three focused comparisons: airline-only, operational-only, and combined evidence.
         - **Trend Lines**:
           Rolling delay and rolling operational stress trends over time.
         - **Traffic Load Vs Delay Severity**:
           Raw scatter plus same-load band comparison to judge fairness at similar traffic.
         - **Delay Timing Breakdown**:
           Weekday and hour-of-day comparisons showing when each airport is usually worse.
-        - **Worst Time Periods**:
-          Ranked tables of highest-stress days and hour blocks.
-        - **Traffic Vs Delay Relationship**:
-          Correlation strength summary between aircraft volume and FAA delay severity.
-          Traceability table of underlying rows used by the charts.
 
         ### 1) Latest Airport Snapshot Metrics
         FAA Delay Severity Index comes from FAA NASStatus event types:
@@ -117,25 +114,13 @@ with calc_tab:
           FAA event delay range (max delay, fallback to min delay),
           across the full collected history.
 
-        ### 2) FAA Status History
-        Built from FAA snapshots in the selected range:
-        - Status counts by airport
-        - Active FAA restriction count over time
-        - Daily delayed snapshots where `faa_event_count > 0`
-        - Log table shows only snapshots with active restrictions
-
-        ### 3) Airline Delay Impact
-        Uses flight-level rows in selected range:
-        - Airline delay severity trend over time
-        - Longest airline delay trend
-        - Daily cancellation rate
-        - Longest delay comparison bars
-
-        ### 4) Hypothesis Check Ratios
+        ### 2) Hypothesis Check Ratios
         The hypothesis section compares MCO vs DEN as:
         - `ratio = metric_at_MCO / metric_at_DEN`
         - `ratio > 1.0`: supports "MCO worse" for that metric
         - `ratio <= 1.0`: does not support "MCO worse" for that metric
+        - Cross-airport comparisons use shared airport-local clock slots
+          (for example, DEN 9 AM is compared against MCO 9 AM).
 
         Airline Delay Comparison metrics:
         - `average_airline_delay_min`
@@ -153,7 +138,23 @@ with calc_tab:
         - `airline_core = ratio(average_airline_severity)`
         - `combined_core_mean = mean(operational_core, airline_core)` when both exist
         It reports whether evidence supports operational, airline, both, mixed, or neither.
-        Additional context callouts are shown when DEN is busier but still more efficient.
+        Additional context callouts are shown when DEN is busier but still more efficient:
+        - Snapshot-average callout: `DEN avg load >= 1.15 * MCO avg load` and `DEN delay_per_100_load < MCO delay_per_100_load`
+        - Daily callout: by local date means, DEN busier (`>= 1.05 * MCO load`) and still lower delay-per-100-load
+
+        ### 3) FAA Status History
+        Built from FAA snapshots in the selected range:
+        - Status counts by airport
+        - Active FAA restriction count over time
+        - Daily delayed snapshots where `faa_event_count > 0`
+        - Log table shows only snapshots with active restrictions
+
+        ### 4) Airline Delay Impact
+        Uses flight-level rows in selected range:
+        - Airline delay severity trend over time
+        - Longest airline delay trend
+        - Daily cancellation rate
+        - Longest delay comparison bars
 
         ### 5) Trend Lines
         Rolling time-series by airport:
@@ -171,15 +172,13 @@ with calc_tab:
         - Hour chart: average delay severity by local hour and airport,
           restricted to hours `7-23` for readability
 
-        ### 8) Worst Time Periods
-        Ranked aggregates:
-        - Worst days by average stress then average delay
-        - Worst hour blocks by average stress then average delay
-
-        ### 9) Traffic Vs Delay Relationship
-        Nearest-time matched delay + traffic rows:
-        - Pearson correlation by airport
-        - Correlation strength comparison chart
+        ### Data Collection Cadence
+        - FAA Delays: every 10 minutes
+        - Traffic: every 10 minutes
+        - Airline collector runs every 10 minutes but only calls AirLabs per airport when:
+          - airport local time is between 9 AM and 11 PM
+          - at least 2 hours have elapsed since that airport's last AirLabs call attempt
+        - Manual dashboard sync can bypass this AirLabs throttle/window for immediate on-demand refresh
         """
     )
 
@@ -208,24 +207,21 @@ with overview_tab:
             - **Hypothesis Check**:
               Includes three sections in order:
               Airline Delay Comparison, Operational Load Comparison, and Combined Evidence Comparison.
-              Each section shows MCO/DEN ratios and its own verdict.
+              Each section shows MCO/DEN ratios and its own verdict, using shared airport-local clock slots.
             - **Trend Lines**:
               Shows rolling delay severity and rolling operational stress.
             - **Traffic Load Vs Delay Severity**:
               Use raw scatter and same-load bands together to judge fairness at similar traffic levels.
             - **Delay Timing Breakdown**:
               Day-of-week view plus hour-of-day view (hours 7-23) for easier reading.
-            - **Worst Time Periods**:
-              Ranked tables highlight highest average stress days and hour blocks.
-            - **Traffic Vs Delay Relationship**:
-              Correlation section shows how strongly traffic volume and delay severity move together.
             - **How To Interpret Quickly**:
               If MCO has a higher **Operational Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
               If MCO is only worse when load spikes, then traffic volume may be the main driver.
             - **Cadence**:
               FAA Delays every 10 minutes, Traffic every 10 minutes.
-              Airline collector runs every 10 minutes but only stores data at ~2-hour intervals per airport
+              Airline collector runs every 10 minutes but only calls AirLabs at 2-hour minimum intervals per airport
               during each airport's local 9 AM to 11 PM window.
+              Manual sync can force AirLabs immediately; use that button sparingly to protect API quota.
             - **Important Limitation**:
               One snapshot can be noisy. Use trend lines and repeated observations before drawing conclusions.
             """
@@ -340,12 +336,52 @@ with overview_tab:
     
     LOCAL_TZ = datetime.now().astimezone().tzinfo
     AIRPORT_TIMEZONES = {
+        "MCO": ZoneInfo("America/New_York"),
         "DEN": ZoneInfo("America/Denver"),
     }
     AIRPORT_COLOR_MAP = {
         "MCO": "#1f77b4",
         "DEN": "#ff7f0e",
     }
+
+    def add_airport_local_clock_fields(df: pd.DataFrame, ts_col: str = "collected_at") -> pd.DataFrame:
+        if df.empty:
+            out = df.copy()
+            out["airport_local_slot"] = pd.Series(dtype="object")
+            out["airport_local_date"] = pd.Series(dtype="object")
+            out["airport_local_hour"] = pd.Series(dtype="Int64")
+            out["airport_local_dow"] = pd.Series(dtype="object")
+            return out
+        out = df.copy()
+        out["airport_local_slot"] = ""
+        out["airport_local_date"] = pd.NA
+        out["airport_local_hour"] = pd.NA
+        out["airport_local_dow"] = pd.NA
+        for airport_key, idx in out.groupby("airport_code").groups.items():
+            tz = AIRPORT_TIMEZONES.get(str(airport_key), LOCAL_TZ)
+            local_series = tz_convert_series(out.loc[idx, ts_col], tz)
+            out.loc[idx, "airport_local_slot"] = local_series.dt.strftime("%Y-%m-%d %H:00")
+            out.loc[idx, "airport_local_date"] = local_series.dt.strftime("%Y-%m-%d")
+            out.loc[idx, "airport_local_hour"] = local_series.dt.hour
+            out.loc[idx, "airport_local_dow"] = local_series.dt.day_name()
+        out["airport_local_hour"] = pd.to_numeric(out["airport_local_hour"], errors="coerce")
+        return out
+
+    def align_to_shared_local_slots(df: pd.DataFrame, airports: list[str]) -> pd.DataFrame:
+        if df.empty:
+            return df.copy()
+        out = df[df["airport_code"].isin(airports)].copy()
+        needed = len(airports)
+        slot_counts = (
+            out.groupby("airport_local_slot", as_index=False)
+            .agg(airports_present=("airport_code", "nunique"))
+        )
+        shared_slots = set(
+            slot_counts.loc[slot_counts["airports_present"] >= needed, "airport_local_slot"]
+            .astype(str)
+            .tolist()
+        )
+        return out[out["airport_local_slot"].astype(str).isin(shared_slots)].copy()
     
     
     def format_local_snapshot_time(ts: pd.Timestamp | None) -> str:
@@ -400,18 +436,23 @@ with overview_tab:
     def run_manual_sync_collectors() -> list[dict]:
         python_bin = sys.executable
         commands = [
-            ("FAA Delays", [python_bin, "src/collect_delays.py"]),
-            ("Live Airspace Traffic", [python_bin, "src/collect_traffic.py"]),
-            ("Airline Delay", [python_bin, "src/collect_flights.py"]),
+            ("FAA Delays", [python_bin, "src/collect_delays.py"], None),
+            ("Live Airspace Traffic", [python_bin, "src/collect_traffic.py"], None),
+            ("Airline Delay", [python_bin, "src/collect_flights.py"], {"AIRLABS_FORCE_SYNC": "1"}),
         ]
         results = []
-        for label, cmd in commands:
+        for label, cmd, env_overrides in commands:
+            env = None
+            if env_overrides:
+                env = dict(os.environ)
+                env.update(env_overrides)
             proc = subprocess.run(
                 cmd,
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
                 timeout=300,
+                env=env,
             )
             results.append(
                 {
@@ -529,6 +570,7 @@ with overview_tab:
         flight_df["delay_minutes"] = to_numeric_series(flight_df["delay_minutes"], index=flight_df.index)
         flight_df["cancelled"] = to_numeric_series(flight_df["cancelled"], index=flight_df.index).fillna(0)
         flight_df["diverted"] = to_numeric_series(flight_df["diverted"], index=flight_df.index).fillna(0)
+        flight_df = add_airport_local_clock_fields(flight_df, ts_col="collected_at")
     
     if not faa_events_df.empty:
         faa_events_df["collected_at"] = to_datetime_utc_series(faa_events_df["collected_at"], index=faa_events_df.index)
@@ -568,7 +610,10 @@ with overview_tab:
         popover_fn = getattr(st, "popover", None)
         if popover_fn is not None:
             with st.popover("Sync Data Now (API Calls)"):
-                st.warning("This will immediately call FAA, Live Airspace Traffic, and AirLabs APIs.")
+                st.warning(
+                    "This will immediately call FAA and Live Airspace Traffic APIs. "
+                    "Manual sync also forces an AirLabs call (bypasses the normal 2-hour/window throttle), so use sparingly."
+                )
                 confirm_sync = st.checkbox("I understand this triggers live API requests now.", key="confirm_manual_sync")
                 if st.button("Run Manual Sync Now", key="run_manual_sync_button"):
                     if not confirm_sync:
@@ -586,7 +631,10 @@ with overview_tab:
                         st.info("Manual sync finished. Click `Refresh now` to reload latest values.")
         else:
             with st.expander("Sync Data Now (API Calls)"):
-                st.warning("This will immediately call FAA, Live Airspace Traffic, and AirLabs APIs.")
+                st.warning(
+                    "This will immediately call FAA and Live Airspace Traffic APIs. "
+                    "Manual sync also forces an AirLabs call (bypasses the normal 2-hour/window throttle), so use sparingly."
+                )
                 confirm_sync = st.checkbox("I understand this triggers live API requests now.", key="confirm_manual_sync_fallback")
                 if st.button("Run Manual Sync Now", key="run_manual_sync_button_fallback"):
                     if not confirm_sync:
@@ -725,10 +773,8 @@ with overview_tab:
     )
     filtered["operational_stress_score"] = pd.to_numeric(filtered["operational_stress_score"], errors="coerce")
 
-    # Convenience time features (Local)
-    filtered["date_utc"] = series_date(filtered["collected_at_local"])
-    filtered["hour_utc"] = series_hour(filtered["collected_at_local"])
-    filtered["dow_utc"] = series_day_name(filtered["collected_at_local"])
+    # Convenience time features (airport-local clock)
+    filtered = add_airport_local_clock_fields(filtered, ts_col="collected_at")
     
     # -----------------------
     # At A Glance
@@ -1105,9 +1151,15 @@ with overview_tab:
         # Hypothesis-focused comparison
         # -----------------------
         st.subheader("Hypothesis Check: Is MCO Disproportionately Worse Than DEN?")
-        st.caption("This section combines FAA and airline-impact evidence with traffic-normalized comparisons.")
+        st.caption(
+            "This section aligns MCO and DEN by shared airport-local clock slots "
+            "(e.g., DEN 9 AM vs MCO 9 AM) before computing ratios."
+        )
 
         hypothesis_df = filtered.copy()
+        hypothesis_df = align_to_shared_local_slots(hypothesis_df, selected_airports)
+        if hypothesis_df.empty:
+            st.info("Not enough overlapping airport-local time slots in this range to compare MCO vs DEN.")
         hypothesis_df["delay_index_best"] = pd.to_numeric(hypothesis_df["delay_index_best"], errors="coerce")
         hypothesis_df["traffic_load_effective"] = pd.to_numeric(hypothesis_df["traffic_load_effective"], errors="coerce")
         hypothesis_df["faa_event_count"] = to_numeric_series(
@@ -1142,6 +1194,7 @@ with overview_tab:
             airline_hypothesis = airline_hypothesis[
                 airline_hypothesis["collected_at_local"].between(start_dt, end_dt)
             ]
+            airline_hypothesis = align_to_shared_local_slots(airline_hypothesis, selected_airports)
             if not airline_hypothesis.empty:
                 airline_hypothesis["delay_positive"] = airline_hypothesis["delay_minutes"].clip(lower=0)
                 airline_summary = (
@@ -1213,8 +1266,7 @@ with overview_tab:
         # Daily-level outperformance signal: on days where DEN is busier than MCO,
         # count how often DEN still has lower delay-per-100-load.
         daily_ops = (
-            hypothesis_df.assign(local_date=series_date(hypothesis_df["collected_at_local"]))
-            .groupby(["local_date", "airport_code"], as_index=False)
+            hypothesis_df.groupby(["airport_local_date", "airport_code"], as_index=False)
             .agg(
                 avg_load=("traffic_load_effective", "mean"),
                 avg_delay_index=("delay_index_best", "mean"),
@@ -1225,7 +1277,11 @@ with overview_tab:
             daily_ops["avg_delay_index"] = to_numeric_series(daily_ops["avg_delay_index"], index=daily_ops.index)
             daily_ops["delay_per_100_load"] = daily_ops["avg_delay_index"] / (daily_ops["avg_load"] / 100.0)
 
-            daily_pivot = daily_ops.pivot(index="local_date", columns="airport_code", values=["avg_load", "delay_per_100_load"])
+            daily_pivot = daily_ops.pivot(
+                index="airport_local_date",
+                columns="airport_code",
+                values=["avg_load", "delay_per_100_load"],
+            )
             if isinstance(daily_pivot, pd.DataFrame) and {"DEN", "MCO"}.issubset(set(daily_pivot.columns.get_level_values(1))):
                 den_load_daily = daily_pivot[("avg_load", "DEN")]
                 mco_load_daily = daily_pivot[("avg_load", "MCO")]
@@ -1908,7 +1964,9 @@ with overview_tab:
 
         dow_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         timing_df = filtered.dropna(subset=["delay_index_best"]).copy()
-        timing_df["dow_utc"] = pd.Categorical(timing_df["dow_utc"], categories=dow_order, ordered=True)
+        timing_df["airport_local_dow"] = pd.Categorical(
+            timing_df["airport_local_dow"], categories=dow_order, ordered=True
+        )
 
         if timing_df.empty:
             st.info("Not enough delay data in this range to show timing breakdown.")
@@ -1917,22 +1975,22 @@ with overview_tab:
 
             with t1:
                 by_dow_raw = timing_df.groupby(
-                    ["dow_utc", "airport_code"], as_index=False, observed=True
+                    ["airport_local_dow", "airport_code"], as_index=False, observed=True
                 ).agg(average_delay_index=("delay_index_best", "mean"))
                 dow_codes = pd.Categorical(
-                    by_dow_raw["dow_utc"], categories=dow_order, ordered=True
+                    by_dow_raw["airport_local_dow"], categories=dow_order, ordered=True
                 )
                 dow_order_idx = pd.Series(dow_codes.codes, index=by_dow_raw.index).argsort(kind="mergesort")
                 by_dow = by_dow_raw.iloc[dow_order_idx.to_numpy()].copy()
                 dow_chart = px.bar(
                     by_dow,
-                    x="dow_utc",
+                    x="airport_local_dow",
                     y="average_delay_index",
                     color="airport_code",
                     barmode="group",
                     title="Average Delay Severity by Day of Week",
                     labels={
-                        "dow_utc": "Day of Week (Local)",
+                        "airport_local_dow": "Day of Week (Airport Local)",
                         "average_delay_index": "Average Delay Severity Index",
                         "airport_code": "Airport",
                     },
@@ -1942,25 +2000,27 @@ with overview_tab:
 
             with t2:
                 by_hour_raw = timing_df.groupby(
-                    ["hour_utc", "airport_code"], as_index=False
+                    ["airport_local_hour", "airport_code"], as_index=False
                 ).agg(average_delay_index=("delay_index_best", "mean"))
-                hour_order_idx = to_numeric_series(by_hour_raw["hour_utc"], index=by_hour_raw.index).argsort(
+                hour_order_idx = to_numeric_series(
+                    by_hour_raw["airport_local_hour"], index=by_hour_raw.index
+                ).argsort(
                     kind="mergesort"
                 )
                 by_hour = by_hour_raw.iloc[hour_order_idx.to_numpy()].copy()
-                by_hour = by_hour[by_hour["hour_utc"] >= 7]
+                by_hour = by_hour[by_hour["airport_local_hour"] >= 7]
                 if by_hour.empty:
                     st.info("No hourly data available after restricting to hours 7-23.")
                 else:
                     hour_chart = px.line(
                         by_hour,
-                        x="hour_utc",
+                        x="airport_local_hour",
                         y="average_delay_index",
                         color="airport_code",
                         markers=True,
                         title="Average Delay Severity by Hour of Day (Hours 7-23)",
                         labels={
-                            "hour_utc": "Hour of Day (Local)",
+                            "airport_local_hour": "Hour of Day (Airport Local)",
                             "average_delay_index": "Average Delay Severity Index",
                             "airport_code": "Airport",
                         },
