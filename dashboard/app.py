@@ -46,11 +46,10 @@ with about_tab:
         - **Airline Delay Severity Index:** live airline-impact score from delays/cancellations/diversions.
         - **Traffic Load:** live aircraft count in airspace near each airport.
         - **Operational Stress Score:** combined measure of traffic pressure and FAA delay severity.
-        - **Load-Adjusted Stress Score:** operational stress normalized by relative load to support fair MCO vs DEN comparison.
 
         ### How The Dashboard Tests The Hypothesis
         - **Airline Delay Comparison:** checks passenger-facing outcomes (delay minutes, cancellation rate, airline severity).
-        - **Operational Load Comparison:** checks FAA severity and load-adjusted operational strain.
+        - **Operational Load Comparison:** checks FAA severity and operational strain.
         - **Combined Evidence Comparison:** merges airline and operational signals, then reports a dynamic verdict (supports, mixed, or does not support).
 
         ### Scope Notes
@@ -80,7 +79,7 @@ with calc_tab:
         - **Hypothesis Check**:
           Three focused comparisons: airline-only, operational-only, and combined evidence.
         - **Trend Lines**:
-          Rolling delay and rolling load-adjusted stress trends over time.
+          Rolling delay and rolling operational stress trends over time.
         - **Traffic Load Vs Delay Severity**:
           Raw scatter plus same-load band comparison to judge fairness at similar traffic.
         - **Delay Timing Breakdown**:
@@ -109,9 +108,6 @@ with calc_tab:
         Traffic and stress metrics:
         - `traffic_load_effective = aircraft_count` (fallback: `dep_total + arr_total`)
         - `operational_stress_score = (1 + delay_severity_index) * (traffic_load_effective / 100)`
-        - `peer_average_load = mean(traffic_load_effective across airports at same timestamp)`
-        - `relative_load_factor = traffic_load_effective / peer_average_load`
-        - `load_adjusted_stress_score = operational_stress_score / (relative_load_factor ^ 0.7)`
 
         Longest delay metrics:
         - **Longest Airline Delay Today**: max flight `delay_minutes` today (local date).
@@ -149,11 +145,10 @@ with calc_tab:
         - `average_traffic_load`
         - `average_delay_index`
         - `delay_per_100_load`
-        - `average_load_adjusted_stress`
         - `faa_restriction_rate_percent`
 
         Combined Evidence verdict uses two core ratios:
-        - `operational_core = ratio(average_load_adjusted_stress)`
+        - `operational_core = ratio(delay_per_100_load)`
         - `airline_core = ratio(average_airline_severity)`
         - `combined_core_mean = mean(operational_core, airline_core)` when both exist
         It reports whether evidence supports operational, airline, both, mixed, or neither.
@@ -161,7 +156,7 @@ with calc_tab:
         ### 5) Trend Lines
         Rolling time-series by airport:
         - Delay Severity Index rolling average
-        - Load-Adjusted Stress Score rolling average
+        - Operational Stress Score rolling average
 
         ### 6) Traffic Load Vs Delay Severity
         Two views in selected range:
@@ -200,9 +195,6 @@ with overview_tab:
             - **Airline Delay Severity Index (AirLabs)**: `0-5` index based on live airline delay minutes, cancellations, and diversions.
             - **Traffic Load**: Live aircraft count in airport airspace. This is the pressure/load signal.
             - **Operational Stress Score**: `(1 + Delay Severity Index) × Traffic Load` (scaled). Higher means heavier operational strain.
-            - **Load-Adjusted Stress Score**: Operational stress partially normalized by relative load at that moment
-              (uses a grace exponent of `0.7`, so higher load gets some allowance but not a full pass).
-              Use this for the fairest MCO vs DEN comparison when traffic differs.
             - **Longest Delay Today Metrics**:
               `Longest Airline Delay Today` comes from AirLabs flight delays.
               `Longest Recorded Delay (Any Source)` takes the largest value seen in your full collected history,
@@ -226,7 +218,7 @@ with overview_tab:
             - **Traffic Vs Delay Relationship**:
               Correlation section shows how strongly traffic volume and delay severity move together.
             - **How To Interpret Quickly**:
-              If MCO has a higher **Load-Adjusted Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
+              If MCO has a higher **Operational Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
               If MCO is only worse when load spikes, then traffic volume may be the main driver.
             - **Cadence**:
               FAA Delays every 10 minutes, Traffic every 10 minutes, Airline Delay every 2 hours (9 AM to 11 PM local).
@@ -729,22 +721,6 @@ with overview_tab:
     )
     filtered["operational_stress_score"] = pd.to_numeric(filtered["operational_stress_score"], errors="coerce")
 
-    # Load-adjusted score applies partial load normalization.
-    # Exponent < 1 gives higher-load airports some grace without fully cancelling load.
-    LOAD_GRACE_EXPONENT = 0.7
-    filtered["peer_average_load"] = filtered.groupby("collected_at")["traffic_load_effective"].transform("mean")
-    filtered["relative_load_factor"] = filtered["traffic_load_effective"] / filtered["peer_average_load"]
-    filtered["relative_load_factor"] = pd.to_numeric(filtered["relative_load_factor"], errors="coerce")
-    filtered.loc[
-        filtered["relative_load_factor"].isna() | (filtered["relative_load_factor"] <= 0),
-        "relative_load_factor"
-    ] = 1.0
-    filtered["load_adjusted_stress_score"] = (
-        filtered["operational_stress_score"] /
-        (filtered["relative_load_factor"] ** LOAD_GRACE_EXPONENT)
-    )
-    filtered["load_adjusted_stress_score"] = pd.to_numeric(filtered["load_adjusted_stress_score"], errors="coerce")
-    
     # Convenience time features (Local)
     filtered["date_utc"] = series_date(filtered["collected_at_local"])
     filtered["hour_utc"] = series_hour(filtered["collected_at_local"])
@@ -903,7 +879,6 @@ with overview_tab:
             {
                 "airport_code": airport,
                 "operational_stress_score": safe_float(airport_row.get("operational_stress_score")),
-                "load_adjusted_stress_score": safe_float(airport_row.get("load_adjusted_stress_score")),
                 "airline_delay_severity_index": safe_float(airline_score),
                 "traffic_load": safe_float(airport_row.get("traffic_load_effective")),
                 "longest_delay_recorded": safe_float(any_recorded),
@@ -914,7 +889,6 @@ with overview_tab:
     if not overview_df.empty:
         for numeric_col in [
             "operational_stress_score",
-            "load_adjusted_stress_score",
             "airline_delay_severity_index",
             "traffic_load",
             "longest_delay_recorded",
@@ -924,9 +898,9 @@ with overview_tab:
         o1, o2, o3, o4 = st.columns(4)
         top_stress_df = sort_values_df(
             overview_df.assign(
-                load_adjusted_stress_score=overview_df["load_adjusted_stress_score"].fillna(float("-inf"))
+                operational_stress_score=overview_df["operational_stress_score"].fillna(float("-inf"))
             ),
-            by="load_adjusted_stress_score",
+            by="operational_stress_score",
             ascending=False,
         )
         top_stress = cast(dict[str, Any], top_stress_df.iloc[0].to_dict())
@@ -957,8 +931,8 @@ with overview_tab:
     
         with o1:
             st.metric(
-                "Highest Load-Adjusted Stress",
-                "N/A" if pd.isna(top_stress["load_adjusted_stress_score"]) else top_stress["airport_code"],
+                "Highest Operational Stress",
+                "N/A" if pd.isna(top_stress["operational_stress_score"]) else top_stress["airport_code"],
             )
         with o2:
             st.metric(
@@ -1046,21 +1020,21 @@ with overview_tab:
                     )
                 with m22:
                     st.metric(
-                        label=f"{airport_row['airport_code']} Load-Adjusted Stress Score",
-                        value="—" if pd.isna(airport_row["load_adjusted_stress_score"]) else round(float(airport_row["load_adjusted_stress_score"]), 3),
+                        label=f"{airport_row['airport_code']} Operational Stress Score",
+                        value="—" if pd.isna(airport_row["operational_stress_score"]) else round(float(airport_row["operational_stress_score"]), 3),
                     )
 
                 st.markdown("#### Additional Metrics")
                 a11, a12 = st.columns(2)
                 with a11:
                     st.metric(
-                        label=f"{airport_row['airport_code']} Operational Stress Score",
-                        value="—" if pd.isna(airport_row["operational_stress_score"]) else round(float(airport_row["operational_stress_score"]), 3),
+                        label=f"{airport_row['airport_code']} Active FAA Restrictions",
+                        value=int(airport_row["faa_event_count"]) if pd.notna(airport_row.get("faa_event_count")) else 0,
                     )
                 with a12:
                     st.metric(
-                        label=f"{airport_row['airport_code']} Active FAA Restrictions",
-                        value=int(airport_row["faa_event_count"]) if pd.notna(airport_row.get("faa_event_count")) else 0,
+                        label=f"{airport_row['airport_code']} Delay Severity Index (FAA)",
+                        value="—" if pd.isna(airport_row["delay_index_best"]) else round(float(airport_row["delay_index_best"]), 3),
                     )
 
                 a21, a22 = st.columns(2)
@@ -1132,9 +1106,6 @@ with overview_tab:
         hypothesis_df = filtered.copy()
         hypothesis_df["delay_index_best"] = pd.to_numeric(hypothesis_df["delay_index_best"], errors="coerce")
         hypothesis_df["traffic_load_effective"] = pd.to_numeric(hypothesis_df["traffic_load_effective"], errors="coerce")
-        hypothesis_df["load_adjusted_stress_score"] = pd.to_numeric(
-            hypothesis_df["load_adjusted_stress_score"], errors="coerce"
-        )
         hypothesis_df["faa_event_count"] = to_numeric_series(
             hypothesis_df["faa_event_count"], index=hypothesis_df.index
         ).fillna(0)
@@ -1146,7 +1117,6 @@ with overview_tab:
                 snapshots=("airport_code", "size"),
                 average_delay_index=("delay_index_best", "mean"),
                 average_traffic_load=("traffic_load_effective", "mean"),
-                average_load_adjusted_stress=("load_adjusted_stress_score", "mean"),
                 faa_restriction_rate=("has_faa_restriction", "mean"),
             )
         )
@@ -1155,9 +1125,6 @@ with overview_tab:
         )
         hypothesis_summary["average_traffic_load"] = to_numeric_series(
             hypothesis_summary["average_traffic_load"], index=hypothesis_summary.index
-        )
-        hypothesis_summary["average_load_adjusted_stress"] = to_numeric_series(
-            hypothesis_summary["average_load_adjusted_stress"], index=hypothesis_summary.index
         )
         hypothesis_summary["delay_per_100_load"] = (
             hypothesis_summary["average_delay_index"] /
@@ -1213,6 +1180,63 @@ with overview_tab:
         hypothesis_rows_by_airport = {
             str(rec["airport_code"]): rec for rec in records(hypothesis_summary)
         }
+
+        denver_load_outperformance_note: str | None = None
+        denver_daily_outperformance_note: str | None = None
+        den_row = hypothesis_rows_by_airport.get("DEN")
+        mco_row = hypothesis_rows_by_airport.get("MCO")
+        if den_row is not None and mco_row is not None:
+            den_load = safe_float(den_row.get("average_traffic_load"))
+            mco_load = safe_float(mco_row.get("average_traffic_load"))
+            den_delay_per_load = safe_float(den_row.get("delay_per_100_load"))
+            mco_delay_per_load = safe_float(mco_row.get("delay_per_100_load"))
+
+            if (
+                den_load is not None
+                and mco_load is not None
+                and mco_load > 0
+                and den_load >= (mco_load * 1.15)
+                and den_delay_per_load is not None
+                and mco_delay_per_load is not None
+                and den_delay_per_load < mco_delay_per_load
+            ):
+                denver_load_outperformance_note = (
+                    f"DEN is handling higher average traffic load ({den_load:.1f} vs {mco_load:.1f}) "
+                    f"while maintaining better delay efficiency "
+                    f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} delay index per 100 load)."
+                )
+
+        # Daily-level outperformance signal: on days where DEN is busier than MCO,
+        # count how often DEN still has lower delay-per-100-load.
+        daily_ops = (
+            hypothesis_df.assign(local_date=series_date(hypothesis_df["collected_at_local"]))
+            .groupby(["local_date", "airport_code"], as_index=False)
+            .agg(
+                avg_load=("traffic_load_effective", "mean"),
+                avg_delay_index=("delay_index_best", "mean"),
+            )
+        )
+        if not daily_ops.empty:
+            daily_ops["avg_load"] = to_numeric_series(daily_ops["avg_load"], index=daily_ops.index)
+            daily_ops["avg_delay_index"] = to_numeric_series(daily_ops["avg_delay_index"], index=daily_ops.index)
+            daily_ops["delay_per_100_load"] = daily_ops["avg_delay_index"] / (daily_ops["avg_load"] / 100.0)
+
+            daily_pivot = daily_ops.pivot(index="local_date", columns="airport_code", values=["avg_load", "delay_per_100_load"])
+            if isinstance(daily_pivot, pd.DataFrame) and {"DEN", "MCO"}.issubset(set(daily_pivot.columns.get_level_values(1))):
+                den_load_daily = daily_pivot[("avg_load", "DEN")]
+                mco_load_daily = daily_pivot[("avg_load", "MCO")]
+                den_dpl_daily = daily_pivot[("delay_per_100_load", "DEN")]
+                mco_dpl_daily = daily_pivot[("delay_per_100_load", "MCO")]
+                valid_days = den_load_daily.notna() & mco_load_daily.notna() & den_dpl_daily.notna() & mco_dpl_daily.notna() & (mco_load_daily > 0)
+                den_busier = den_load_daily >= (mco_load_daily * 1.05)
+                den_better_eff = den_dpl_daily < mco_dpl_daily
+                busier_days = int((valid_days & den_busier).sum())
+                better_when_busier_days = int((valid_days & den_busier & den_better_eff).sum())
+                if busier_days > 0:
+                    denver_daily_outperformance_note = (
+                        f"Daily view: DEN was busier than MCO on {busier_days} day(s) in this range and "
+                        f"still had better delay-per-100-load on {better_when_busier_days} of those day(s)."
+                    )
 
         def build_ratio_df(metric_defs: list[tuple[str, str]]) -> pd.DataFrame:
             rows = []
@@ -1292,7 +1316,6 @@ with overview_tab:
                         "average_traffic_load",
                         "average_delay_index",
                         "delay_per_100_load",
-                        "average_load_adjusted_stress",
                         "faa_restriction_rate_percent",
                     ]
                 ]
@@ -1304,7 +1327,6 @@ with overview_tab:
                 ("average_traffic_load", "Average Traffic Load"),
                 ("average_delay_index", "Average Delay Severity Index"),
                 ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
-                ("average_load_adjusted_stress", "Load-Adjusted Stress"),
                 ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
             ]
         )
@@ -1325,14 +1347,18 @@ with overview_tab:
             operational_ratio_chart.add_hline(y=1.0, line_dash="dash", line_color="gray")
             st.plotly_chart(operational_ratio_chart, width="stretch")
             operational_core = operational_ratio_df.loc[
-                operational_ratio_df["metric"] == "Load-Adjusted Stress", "mco_vs_den_ratio"
+                operational_ratio_df["metric"] == "Delay Index Per 100 Traffic Load", "mco_vs_den_ratio"
             ].dropna()
             if not operational_core.empty:
                 operational_verdict = "Supports hypothesis" if operational_core.iloc[0] > 1.0 else "Does not support hypothesis"
                 st.write(
                     f"**Operational verdict:** {operational_verdict} "
-                    f"(MCO/DEN load-adjusted stress ratio = {operational_core.iloc[0]:.2f})."
+                    f"(MCO/DEN delay-per-100-load ratio = {operational_core.iloc[0]:.2f})."
                 )
+                if denver_load_outperformance_note is not None:
+                    st.info(denver_load_outperformance_note)
+                if denver_daily_outperformance_note is not None:
+                    st.info(denver_daily_outperformance_note)
 
         st.markdown("### Combined Evidence Comparison")
         st.dataframe(
@@ -1344,7 +1370,6 @@ with overview_tab:
                         "average_traffic_load",
                         "average_delay_index",
                         "delay_per_100_load",
-                        "average_load_adjusted_stress",
                         "faa_restriction_rate_percent",
                         "airline_flights",
                         "average_airline_delay_min",
@@ -1358,7 +1383,6 @@ with overview_tab:
         )
         combined_ratio_df = build_ratio_df(
             [
-                ("average_load_adjusted_stress", "Load-Adjusted Stress"),
                 ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
                 ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
                 ("average_airline_delay_min", "Average Airline Delay (Minutes)"),
@@ -1384,7 +1408,7 @@ with overview_tab:
             st.plotly_chart(combined_ratio_chart, width="stretch")
 
             operational_core_series = combined_ratio_df.loc[
-                combined_ratio_df["metric"] == "Load-Adjusted Stress", "mco_vs_den_ratio"
+                combined_ratio_df["metric"] == "Delay Index Per 100 Traffic Load", "mco_vs_den_ratio"
             ].dropna()
             airline_core_series = combined_ratio_df.loc[
                 combined_ratio_df["metric"] == "Airline Delay Severity", "mco_vs_den_ratio"
@@ -1411,6 +1435,10 @@ with overview_tab:
                     f"Operational ratio = {operational_core:.2f}, airline ratio = {airline_core:.2f}, "
                     f"mean core ratio = {combined_ratio:.2f}."
                 )
+                if denver_load_outperformance_note is not None:
+                    st.info(denver_load_outperformance_note)
+                if denver_daily_outperformance_note is not None:
+                    st.info(denver_daily_outperformance_note)
             elif operational_core is not None:
                 verdict_text = "supports the hypothesis" if operational_core > 1.0 else "does not support the hypothesis"
                 st.write(
@@ -1739,7 +1767,7 @@ with overview_tab:
         rolling_window = 6
         
         trend = sort_values_df(filtered, by=["airport_code", "collected_at"]).copy()
-        for numeric_col in ["delay_index_best", "traffic_load_effective", "operational_stress_score", "load_adjusted_stress_score"]:
+        for numeric_col in ["delay_index_best", "traffic_load_effective", "operational_stress_score"]:
             trend[numeric_col] = pd.to_numeric(trend[numeric_col], errors="coerce")
         def rolling_mean(series: pd.Series) -> pd.Series:
             return series.rolling(rolling_window, min_periods=1).mean()
@@ -1747,8 +1775,6 @@ with overview_tab:
         trend["delay_index_roll"] = trend.groupby("airport_code")["delay_index_best"].transform(rolling_mean)
         trend["load_roll"] = trend.groupby("airport_code")["traffic_load_effective"].transform(rolling_mean)
         trend["stress_roll"] = trend.groupby("airport_code")["operational_stress_score"].transform(rolling_mean)
-        trend["load_adjusted_stress_roll"] = trend.groupby("airport_code")["load_adjusted_stress_score"].transform(rolling_mean)
-        
         trend_col1, trend_col2 = st.columns(2)
 
         with trend_col1:
@@ -1770,22 +1796,22 @@ with overview_tab:
             st.plotly_chart(trend_delay_chart, width="stretch")
 
         with trend_col2:
-            trend_load_chart = px.line(
+            trend_stress_chart = px.line(
                 trend,
                 x="collected_at_local",
-                y="load_adjusted_stress_roll",
+                y="stress_roll",
                 color="airport_code",
                 markers=True,
-                title=f"Load-Adjusted Stress Score (Rolling Average, {rolling_window} Points)",
+                title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
                 labels={
                     "collected_at_local": "Snapshot Time (Local)",
-                    "load_adjusted_stress_roll": "Load-Adjusted Stress Score",
+                    "stress_roll": "Operational Stress Score",
                     "airport_code": "Airport",
                 },
                 color_discrete_map=AIRPORT_COLOR_MAP,
             )
-            format_time_axis_12h(trend_load_chart)
-            st.plotly_chart(trend_load_chart, width="stretch")
+            format_time_axis_12h(trend_stress_chart)
+            st.plotly_chart(trend_stress_chart, width="stretch")
 
         st.divider()
         
