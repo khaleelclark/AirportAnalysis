@@ -13,6 +13,8 @@ To evaluate that, the pipeline continuously collects and visualizes:
 - Live airspace traffic snapshots near each airport
 - Flight-level airline delay/cancel/diversion signals
 
+The hypothesis view also highlights when DEN is handling higher load but still delivering better delay efficiency.
+
 ## Tech Stack
 
 - Python 3.12
@@ -109,11 +111,13 @@ Current tests are deterministic parser/scoring checks and do not call live APIs.
 ```cron
 */10 * * * * /path/to/project/scripts/collect_traffic.sh
 */10 * * * * /path/to/project/scripts/collect_delays.sh
-0 9-23/2 * * * /path/to/project/scripts/collect_flights.sh
+*/10 * * * * /path/to/project/scripts/collect_flights.sh
 ```
 
 - Traffic and FAA: every 10 minutes
-- AirLabs: every 2 hours from 9 AM to 11 PM
+- AirLabs script: runs every 10 minutes, but collector self-gates to:
+  - each airport's local 9 AM-11 PM window
+  - ~2-hour minimum interval per airport
 
 ## Troubleshooting
 
