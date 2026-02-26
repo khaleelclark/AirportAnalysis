@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -30,6 +31,14 @@ AIRPORTS = [a.strip().upper() for a in os.getenv("AIRLABS_AIRPORTS", "MCO,DEN").
 TIMEOUT_SECONDS = int(os.getenv("AIRLABS_TIMEOUT_SECONDS", "30"))
 REQUEST_PAUSE_SECONDS = float(os.getenv("AIRLABS_REQUEST_PAUSE_SECONDS", "0.5"))
 LIMIT = int(os.getenv("AIRLABS_LIMIT", "100"))
+LOCAL_COLLECTION_START_HOUR = int(os.getenv("AIRLABS_LOCAL_START_HOUR", "9"))
+LOCAL_COLLECTION_END_HOUR = int(os.getenv("AIRLABS_LOCAL_END_HOUR", "23"))
+COLLECTION_INTERVAL_MINUTES = int(os.getenv("AIRLABS_COLLECTION_INTERVAL_MINUTES", "120"))
+
+AIRPORT_TIMEZONES = {
+    "MCO": ZoneInfo("America/New_York"),
+    "DEN": ZoneInfo("America/Denver"),
+}
 
 
 def iso_to_dt(s: Optional[str]) -> Optional[datetime]:
@@ -39,6 +48,53 @@ def iso_to_dt(s: Optional[str]) -> Optional[datetime]:
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def airport_local_now(now_utc: datetime, airport: str) -> datetime:
+    tz = AIRPORT_TIMEZONES.get(airport, timezone.utc)
+    return now_utc.astimezone(tz)
+
+
+def in_local_collection_window(local_dt: datetime) -> bool:
+    return LOCAL_COLLECTION_START_HOUR <= local_dt.hour <= LOCAL_COLLECTION_END_HOUR
+
+
+def get_last_collected_at(conn: sqlite3.Connection, airport: str) -> Optional[datetime]:
+    cur = conn.cursor()
+    row = cur.execute(
+        """
+        SELECT MAX(collected_at) AS last_collected_at
+        FROM flight_snapshots
+        WHERE airport_code = ?
+        """,
+        (airport,),
+    ).fetchone()
+    if row is None:
+        return None
+    raw_val = row[0] if not isinstance(row, sqlite3.Row) else row["last_collected_at"]
+    if not raw_val:
+        return None
+    last_dt = iso_to_dt(str(raw_val))
+    if last_dt is None:
+        return None
+    if last_dt.tzinfo is None:
+        return last_dt.replace(tzinfo=timezone.utc)
+    return last_dt.astimezone(timezone.utc)
+
+
+def should_collect_for_airport(conn: sqlite3.Connection, airport: str, now_utc: datetime) -> tuple[bool, str]:
+    local_now = airport_local_now(now_utc, airport)
+    if not in_local_collection_window(local_now):
+        return False, f"outside local collection window ({local_now.strftime('%H:%M %Z')})"
+
+    last_collected = get_last_collected_at(conn, airport)
+    if last_collected is None:
+        return True, "no previous snapshots"
+
+    elapsed_min = (now_utc - last_collected).total_seconds() / 60.0
+    if elapsed_min < COLLECTION_INTERVAL_MINUTES:
+        return False, f"interval not reached ({elapsed_min:.0f}m < {COLLECTION_INTERVAL_MINUTES}m)"
+    return True, f"interval reached ({elapsed_min:.0f}m)"
 
 
 def minutes_between(late: Optional[datetime], early: Optional[datetime]) -> Optional[float]:
@@ -238,7 +294,8 @@ def fetch_and_store_for_airport(conn: sqlite3.Connection, airport: str, directio
 
 
 def main():
-    collected_at = datetime.now(timezone.utc).isoformat()
+    now_utc = datetime.now(timezone.utc)
+    collected_at = now_utc.isoformat()
     print(f"\nCollecting AirLabs flight snapshots at {collected_at}")
     print(f"Airports={AIRPORTS}\n")
 
@@ -249,6 +306,15 @@ def main():
         total_inserted = 0
 
         for airport in AIRPORTS:
+            should_collect, reason = should_collect_for_airport(conn, airport, now_utc)
+            local_now = airport_local_now(now_utc, airport)
+            print(
+                f"{airport} local time {local_now.strftime('%Y-%m-%d %H:%M %Z')}: "
+                f"{'collecting' if should_collect else 'skipping'} ({reason})"
+            )
+            if not should_collect:
+                continue
+
             for direction in ("departure", "arrival"):
                 print(f"Fetching {airport} {direction}s ...")
                 try:
