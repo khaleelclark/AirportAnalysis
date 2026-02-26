@@ -96,7 +96,24 @@ Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\stre
 - About This Project
 - Calculation Details
 
-Metric definitions and formulas are documented directly in the Calculation Details tab.
+### About This Project
+- States the central MCO vs DEN question and hypothesis.
+- Lists FAA, traffic, and AirLabs data sources.
+- Documents collection cadence and guardrails:
+  - FAA/Traffic: every 10 minutes
+  - AirLabs: strict per-airport 2-hour minimum call interval, only during each airport's local 9 AM-11 PM window
+
+### Calculation Details
+- Defines all core formulas (delay severity, airline severity, traffic load, operational stress).
+- Explains ratio logic in Hypothesis Check.
+- Confirms cross-airport hypothesis ratios are aligned by shared airport-local clock slots (for example, DEN 9 AM vs MCO 9 AM).
+- Documents DEN outperformance callouts when DEN carries higher load but remains more efficient.
+
+### How To Read This Dashboard (inside Dashboard Overview)
+- Explains what each metric means and how to interpret comparisons.
+- Includes cadence notes so users do not misread stale timestamps as failed collection.
+- Notes that MCO vs DEN comparisons are made on matched airport-local time slots.
+- Clarifies that manual sync can run collectors immediately and can force an on-demand AirLabs call.
 
 ## Tests
 
@@ -117,7 +134,8 @@ Current tests are deterministic parser/scoring checks and do not call live APIs.
 - Traffic and FAA: every 10 minutes
 - AirLabs script: runs every 10 minutes, but collector self-gates to:
   - each airport's local 9 AM-11 PM window
-  - ~2-hour minimum interval per airport
+  - strict 2-hour minimum between AirLabs API call attempts per airport
+- Manual dashboard sync can force an immediate AirLabs call for on-demand refresh
 
 ## Troubleshooting
 

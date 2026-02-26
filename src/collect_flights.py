@@ -34,6 +34,8 @@ LIMIT = int(os.getenv("AIRLABS_LIMIT", "100"))
 LOCAL_COLLECTION_START_HOUR = int(os.getenv("AIRLABS_LOCAL_START_HOUR", "9"))
 LOCAL_COLLECTION_END_HOUR = int(os.getenv("AIRLABS_LOCAL_END_HOUR", "23"))
 COLLECTION_INTERVAL_MINUTES = int(os.getenv("AIRLABS_COLLECTION_INTERVAL_MINUTES", "120"))
+STATE_DIR = Path(os.getenv("AIRLABS_STATE_DIR", "data/collector_state"))
+FORCE_SYNC = os.getenv("AIRLABS_FORCE_SYNC", "").strip().lower() in {"1", "true", "yes", "on"}
 
 AIRPORT_TIMEZONES = {
     "MCO": ZoneInfo("America/New_York"),
@@ -82,19 +84,47 @@ def get_last_collected_at(conn: sqlite3.Connection, airport: str) -> Optional[da
     return last_dt.astimezone(timezone.utc)
 
 
+def get_last_api_call_attempt(airport: str) -> Optional[datetime]:
+    state_file = STATE_DIR / f"airlabs_last_call_{airport}.txt"
+    if not state_file.exists():
+        return None
+    try:
+        raw_val = state_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    last_dt = iso_to_dt(raw_val)
+    if last_dt is None:
+        return None
+    if last_dt.tzinfo is None:
+        return last_dt.replace(tzinfo=timezone.utc)
+    return last_dt.astimezone(timezone.utc)
+
+
+def record_api_call_attempt(airport: str, attempted_at: datetime) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    state_file = STATE_DIR / f"airlabs_last_call_{airport}.txt"
+    state_file.write_text(attempted_at.astimezone(timezone.utc).isoformat(), encoding="utf-8")
+
+
 def should_collect_for_airport(conn: sqlite3.Connection, airport: str, now_utc: datetime) -> tuple[bool, str]:
+    if FORCE_SYNC:
+        return True, "manual override (AIRLABS_FORCE_SYNC)"
+
     local_now = airport_local_now(now_utc, airport)
     if not in_local_collection_window(local_now):
         return False, f"outside local collection window ({local_now.strftime('%H:%M %Z')})"
 
+    last_attempt = get_last_api_call_attempt(airport)
     last_collected = get_last_collected_at(conn, airport)
-    if last_collected is None:
+    reference_time = last_attempt or last_collected
+    if reference_time is None:
         return True, "no previous snapshots"
 
-    elapsed_min = (now_utc - last_collected).total_seconds() / 60.0
+    elapsed_min = (now_utc - reference_time).total_seconds() / 60.0
+    source = "last API call" if last_attempt is not None else "last stored snapshot"
     if elapsed_min < COLLECTION_INTERVAL_MINUTES:
-        return False, f"interval not reached ({elapsed_min:.0f}m < {COLLECTION_INTERVAL_MINUTES}m)"
-    return True, f"interval reached ({elapsed_min:.0f}m)"
+        return False, f"interval not reached since {source} ({elapsed_min:.0f}m < {COLLECTION_INTERVAL_MINUTES}m)"
+    return True, f"interval reached since {source} ({elapsed_min:.0f}m)"
 
 
 def minutes_between(late: Optional[datetime], early: Optional[datetime]) -> Optional[float]:
@@ -314,6 +344,7 @@ def main():
             )
             if not should_collect:
                 continue
+            record_api_call_attempt(airport, now_utc)
 
             for direction in ("departure", "arrival"):
                 print(f"Fetching {airport} {direction}s ...")
