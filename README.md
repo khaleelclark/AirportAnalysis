@@ -107,12 +107,17 @@ Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\stre
 - Defines all core formulas (delay severity, airline severity, traffic load, operational stress).
 - Explains ratio logic in Hypothesis Check.
 - Confirms cross-airport hypothesis ratios are aligned by shared airport-local clock slots (for example, DEN 9 AM vs MCO 9 AM).
+- Uses FAA downtime impact as the operational core metric (`downtime_per_100_load`).
+- Applies minimum sample-size quality gates before showing verdicts.
+- Reports bootstrap 95% confidence intervals and Low/Medium/High confidence tags.
+- Uses reliability-weighted combined core evidence (not a simple equal average).
 - Documents DEN outperformance callouts when DEN carries higher load but remains more efficient.
 
 ### How To Read This Dashboard (inside Dashboard Overview)
 - Explains what each metric means and how to interpret comparisons.
 - Includes cadence notes so users do not misread stale timestamps as failed collection.
 - Notes that MCO vs DEN comparisons are made on matched airport-local time slots.
+- Notes that verdicts can be withheld if quality gates are not met.
 - Clarifies that manual sync can run collectors immediately and can force an on-demand AirLabs call.
 
 ## Tests

@@ -121,6 +121,10 @@ with calc_tab:
         - `ratio <= 1.0`: does not support "MCO worse" for that metric
         - Cross-airport comparisons use shared airport-local clock slots
           (for example, DEN 9 AM is compared against MCO 9 AM).
+        - Verdicts are gated by minimum sample thresholds and include confidence tags.
+        - Core ratio confidence uses bootstrap 95% confidence intervals.
+        - FAA downtime normalization uses a traffic-load floor to reduce low-load blowups.
+        - Combined core uses reliability-weighted evidence (not an equal average).
 
         Airline Delay Comparison metrics:
         - `average_airline_delay_min`
@@ -130,17 +134,17 @@ with calc_tab:
         Operational Load Comparison metrics:
         - `average_traffic_load`
         - `average_delay_index`
-        - `delay_per_100_load`
-        - `faa_restriction_rate_percent`
+        - `average_faa_downtime_minutes`
+        - `downtime_per_100_load`
 
         Combined Evidence verdict uses two core ratios:
-        - `operational_core = ratio(delay_per_100_load)`
+        - `operational_core = ratio(downtime_per_100_load)`
         - `airline_core = ratio(average_airline_severity)`
-        - `combined_core_mean = mean(operational_core, airline_core)` when both exist
+        - `combined_core_weighted = weighted_mean(operational_core, airline_core)` using available evidence sample sizes
         It reports whether evidence supports operational, airline, both, mixed, or neither.
         Additional context callouts are shown when DEN is busier but still more efficient:
-        - Snapshot-average callout: `DEN avg load >= 1.15 * MCO avg load` and `DEN delay_per_100_load < MCO delay_per_100_load`
-        - Daily callout: by local date means, DEN busier (`>= 1.05 * MCO load`) and still lower delay-per-100-load
+        - Snapshot-average callout: `DEN avg load >= 1.15 * MCO avg load` and `DEN downtime_per_100_load < MCO downtime_per_100_load`
+        - Daily callout: by local date means, DEN busier (`>= 1.05 * MCO load`) and still lower downtime-per-100-load
 
         ### 3) FAA Status History
         Built from FAA snapshots in the selected range:
@@ -208,6 +212,7 @@ with overview_tab:
               Includes three sections in order:
               Airline Delay Comparison, Operational Load Comparison, and Combined Evidence Comparison.
               Each section shows MCO/DEN ratios and its own verdict, using shared airport-local clock slots.
+              Verdicts may be withheld when sample-size quality gates are not met.
             - **Trend Lines**:
               Shows rolling delay severity and rolling operational stress.
             - **Traffic Load Vs Delay Severity**:
@@ -215,8 +220,9 @@ with overview_tab:
             - **Delay Timing Breakdown**:
               Day-of-week view plus hour-of-day view (hours 7-23) for easier reading.
             - **How To Interpret Quickly**:
-              If MCO has a higher **Operational Stress Score** over multiple snapshots/days, that supports the hypothesis that MCO is disproportionately worse.
-              If MCO is only worse when load spikes, then traffic volume may be the main driver.
+              For operational evidence, focus on **FAA downtime minutes per 100 traffic load** and its confidence label.
+              For passenger-facing evidence, focus on **Airline Delay Severity** and its confidence label.
+              If only one side supports the hypothesis, treat the result as mixed rather than definitive.
             - **Cadence**:
               FAA Delays every 10 minutes, Traffic every 10 minutes.
               Airline collector runs every 10 minutes but only calls AirLabs at 2-hour minimum intervals per airport
@@ -332,6 +338,50 @@ with overview_tab:
         if x.nunique() < 2 or y.nunique() < 2:
             return None
         return float(x.corr(y))
+
+    def bootstrap_ratio_ci(
+        paired_df: pd.DataFrame,
+        mco_col: str,
+        den_col: str,
+        *,
+        iterations: int = 1000,
+    ) -> tuple[float, float] | None:
+        if paired_df.empty:
+            return None
+        work = paired_df[[mco_col, den_col]].copy()
+        work[mco_col] = to_numeric_series(work[mco_col], index=work.index)
+        work[den_col] = to_numeric_series(work[den_col], index=work.index)
+        work = work.dropna(subset=[mco_col, den_col])
+        work = work[work[den_col] > 0]
+        if len(work) < 3:
+            return None
+        ratios: list[float] = []
+        for i in range(iterations):
+            sample = work.sample(n=len(work), replace=True, random_state=17 + i)
+            den_mean = float(sample[den_col].mean())
+            mco_mean = float(sample[mco_col].mean())
+            if den_mean > 0:
+                ratios.append(mco_mean / den_mean)
+        if len(ratios) < 10:
+            return None
+        q = pd.Series(ratios).quantile([0.025, 0.975])
+        return float(q.iloc[0]), float(q.iloc[1])
+
+    def confidence_tag(
+        sample_size: int,
+        min_needed: int,
+        ci: tuple[float, float] | None,
+    ) -> str:
+        if sample_size < min_needed:
+            return "Low"
+        if ci is None:
+            return "Low"
+        ci_width = float(ci[1] - ci[0])
+        if sample_size >= (min_needed * 3) and ci_width <= 0.35:
+            return "High"
+        if sample_size >= (min_needed * 2) and ci_width <= 0.7:
+            return "Medium"
+        return "Low"
     
     
     LOCAL_TZ = datetime.now().astimezone().tzinfo
@@ -775,6 +825,30 @@ with overview_tab:
 
     # Convenience time features (airport-local clock)
     filtered = add_airport_local_clock_fields(filtered, ts_col="collected_at")
+    filtered["faa_downtime_minutes"] = 0.0
+    if not faa_events_df.empty:
+        faa_events_view = faa_events_df[faa_events_df["airport_code"].isin(selected_airports)].copy()
+        faa_events_view = faa_events_view[faa_events_view["collected_at"].between(start_dt, end_dt)]
+        if not faa_events_view.empty:
+            faa_events_view["faa_delay_for_max"] = faa_events_view["max_delay_minutes"]
+            faa_events_view.loc[
+                faa_events_view["faa_delay_for_max"].isna(), "faa_delay_for_max"
+            ] = faa_events_view["min_delay_minutes"]
+            snapshot_downtime = (
+                faa_events_view.groupby(["airport_code", "collected_at"], as_index=False)
+                .agg(faa_downtime_minutes=("faa_delay_for_max", "max"))
+            )
+            filtered = filtered.merge(
+                snapshot_downtime,
+                on=["airport_code", "collected_at"],
+                how="left",
+                suffixes=("", "_evt"),
+            )
+            if "faa_downtime_minutes_evt" in filtered.columns:
+                filtered["faa_downtime_minutes"] = to_numeric_series(
+                    filtered["faa_downtime_minutes_evt"], index=filtered.index
+                ).fillna(0.0)
+                filtered = filtered.drop(columns=["faa_downtime_minutes_evt"])
     
     # -----------------------
     # At A Glance
@@ -1160,12 +1234,24 @@ with overview_tab:
         hypothesis_df = align_to_shared_local_slots(hypothesis_df, selected_airports)
         if hypothesis_df.empty:
             st.info("Not enough overlapping airport-local time slots in this range to compare MCO vs DEN.")
+        MIN_SHARED_SLOTS = 6
+        MIN_AIRLINE_FLIGHTS_PER_AIRPORT = 40
+        MIN_FAA_DOWNTIME_SLOTS_PER_AIRPORT = 3
+        LOAD_FLOOR_FOR_NORMALIZATION = 25.0
+
         hypothesis_df["delay_index_best"] = pd.to_numeric(hypothesis_df["delay_index_best"], errors="coerce")
         hypothesis_df["traffic_load_effective"] = pd.to_numeric(hypothesis_df["traffic_load_effective"], errors="coerce")
         hypothesis_df["faa_event_count"] = to_numeric_series(
             hypothesis_df["faa_event_count"], index=hypothesis_df.index
         ).fillna(0)
         hypothesis_df["has_faa_restriction"] = hypothesis_df["faa_event_count"] > 0
+        hypothesis_df["load_for_norm"] = to_numeric_series(
+            hypothesis_df["traffic_load_effective"], index=hypothesis_df.index
+        ).clip(lower=LOAD_FLOOR_FOR_NORMALIZATION)
+        hypothesis_df["downtime_per_100_load_row"] = (
+            to_numeric_series(hypothesis_df["faa_downtime_minutes"], index=hypothesis_df.index).fillna(0.0) /
+            (hypothesis_df["load_for_norm"] / 100.0)
+        )
 
         hypothesis_summary = (
             hypothesis_df.groupby("airport_code", as_index=False)
@@ -1174,6 +1260,9 @@ with overview_tab:
                 average_delay_index=("delay_index_best", "mean"),
                 average_traffic_load=("traffic_load_effective", "mean"),
                 faa_restriction_rate=("has_faa_restriction", "mean"),
+                average_faa_downtime_minutes=("faa_downtime_minutes", "mean"),
+                faa_downtime_slots=("faa_downtime_minutes", lambda s: int((to_numeric_series(s, index=s.index).fillna(0) > 0).sum())),
+                downtime_per_100_load=("downtime_per_100_load_row", "mean"),
             )
         )
         hypothesis_summary["average_delay_index"] = to_numeric_series(
@@ -1182,13 +1271,10 @@ with overview_tab:
         hypothesis_summary["average_traffic_load"] = to_numeric_series(
             hypothesis_summary["average_traffic_load"], index=hypothesis_summary.index
         )
-        hypothesis_summary["delay_per_100_load"] = (
-            hypothesis_summary["average_delay_index"] /
-            (hypothesis_summary["average_traffic_load"] / 100.0)
-        )
         hypothesis_summary["faa_restriction_rate_percent"] = hypothesis_summary["faa_restriction_rate"] * 100.0
 
         airline_hypothesis = pd.DataFrame()
+        airline_slot_pairs = pd.DataFrame()
         if not flight_df.empty:
             airline_hypothesis = flight_df[flight_df["airport_code"].isin(selected_airports)].copy()
             airline_hypothesis = airline_hypothesis[
@@ -1224,6 +1310,27 @@ with overview_tab:
                 airline_summary["divert_rate_percent"] = airline_summary["divert_rate"] * 100.0
                 hypothesis_summary = hypothesis_summary.merge(airline_summary, on="airport_code", how="left")
 
+                airline_by_slot = (
+                    airline_hypothesis.groupby(["airport_local_slot", "airport_code"], as_index=False)
+                    .agg(
+                        avg_delay_min=("delay_positive", "mean"),
+                        cancel_rate=("cancelled", "mean"),
+                        divert_rate=("diverted", "mean"),
+                    )
+                )
+                airline_by_slot["airline_severity"] = (
+                    (to_numeric_series(airline_by_slot["avg_delay_min"], index=airline_by_slot.index).fillna(0) / 20.0).clip(upper=3.0)
+                    + (to_numeric_series(airline_by_slot["cancel_rate"], index=airline_by_slot.index).fillna(0) * 4.0).clip(upper=1.5)
+                    + (to_numeric_series(airline_by_slot["divert_rate"], index=airline_by_slot.index).fillna(0) * 2.0).clip(upper=0.5)
+                ).clip(upper=5.0)
+                airline_slot_pairs = airline_by_slot.pivot(
+                    index="airport_local_slot", columns="airport_code", values="airline_severity"
+                ).rename(columns={"MCO": "mco_airline", "DEN": "den_airline"}).dropna(
+                    subset=["mco_airline", "den_airline"], how="any"
+                )
+                if isinstance(airline_slot_pairs, pd.DataFrame):
+                    airline_slot_pairs = airline_slot_pairs.reset_index()
+
         for col in [
             "airline_flights",
             "average_airline_delay_min",
@@ -1238,6 +1345,51 @@ with overview_tab:
             str(rec["airport_code"]): rec for rec in records(hypothesis_summary)
         }
 
+        operational_slot_pairs = (
+            hypothesis_df.groupby(["airport_local_slot", "airport_code"], as_index=False)
+            .agg(downtime_per_100_load=("downtime_per_100_load_row", "mean"))
+            .pivot(index="airport_local_slot", columns="airport_code", values="downtime_per_100_load")
+            .rename(columns={"MCO": "mco_operational", "DEN": "den_operational"})
+            .dropna(subset=["mco_operational", "den_operational"], how="any")
+        )
+        if isinstance(operational_slot_pairs, pd.DataFrame):
+            operational_slot_pairs = operational_slot_pairs.reset_index()
+
+        shared_slot_count = int(hypothesis_df["airport_local_slot"].nunique())
+        faa_downtime_slots_mco = int(hypothesis_df[(hypothesis_df["airport_code"] == "MCO") & (hypothesis_df["faa_downtime_minutes"] > 0)]["airport_local_slot"].nunique())
+        faa_downtime_slots_den = int(hypothesis_df[(hypothesis_df["airport_code"] == "DEN") & (hypothesis_df["faa_downtime_minutes"] > 0)]["airport_local_slot"].nunique())
+        mco_flights = int(safe_float((hypothesis_rows_by_airport.get("MCO") or {}).get("airline_flights")) or 0)
+        den_flights = int(safe_float((hypothesis_rows_by_airport.get("DEN") or {}).get("airline_flights")) or 0)
+
+        operational_ci = bootstrap_ratio_ci(
+            operational_slot_pairs if isinstance(operational_slot_pairs, pd.DataFrame) else pd.DataFrame(),
+            "mco_operational",
+            "den_operational",
+        )
+        airline_ci = bootstrap_ratio_ci(
+            airline_slot_pairs if isinstance(airline_slot_pairs, pd.DataFrame) else pd.DataFrame(),
+            "mco_airline",
+            "den_airline",
+        )
+
+        operational_gate_ok = (
+            shared_slot_count >= MIN_SHARED_SLOTS
+            and faa_downtime_slots_mco >= MIN_FAA_DOWNTIME_SLOTS_PER_AIRPORT
+            and faa_downtime_slots_den >= MIN_FAA_DOWNTIME_SLOTS_PER_AIRPORT
+        )
+        airline_gate_ok = (
+            shared_slot_count >= MIN_SHARED_SLOTS
+            and mco_flights >= MIN_AIRLINE_FLIGHTS_PER_AIRPORT
+            and den_flights >= MIN_AIRLINE_FLIGHTS_PER_AIRPORT
+        )
+
+        st.caption(
+            f"Evidence quality gates: shared slots={shared_slot_count} (min {MIN_SHARED_SLOTS}), "
+            f"MCO/DEN airline flights={mco_flights}/{den_flights} (min {MIN_AIRLINE_FLIGHTS_PER_AIRPORT} each), "
+            f"MCO/DEN FAA downtime slots={faa_downtime_slots_mco}/{faa_downtime_slots_den} "
+            f"(min {MIN_FAA_DOWNTIME_SLOTS_PER_AIRPORT} each)."
+        )
+
         denver_load_outperformance_note: str | None = None
         denver_daily_outperformance_note: str | None = None
         den_row = hypothesis_rows_by_airport.get("DEN")
@@ -1245,8 +1397,8 @@ with overview_tab:
         if den_row is not None and mco_row is not None:
             den_load = safe_float(den_row.get("average_traffic_load"))
             mco_load = safe_float(mco_row.get("average_traffic_load"))
-            den_delay_per_load = safe_float(den_row.get("delay_per_100_load"))
-            mco_delay_per_load = safe_float(mco_row.get("delay_per_100_load"))
+            den_delay_per_load = safe_float(den_row.get("downtime_per_100_load"))
+            mco_delay_per_load = safe_float(mco_row.get("downtime_per_100_load"))
 
             if (
                 den_load is not None
@@ -1259,8 +1411,8 @@ with overview_tab:
             ):
                 denver_load_outperformance_note = (
                     f"DEN is handling higher average traffic load ({den_load:.1f} vs {mco_load:.1f}) "
-                    f"while maintaining better delay efficiency "
-                    f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} delay index per 100 load)."
+                    f"while maintaining better FAA downtime efficiency "
+                    f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} downtime minutes per 100 load)."
                 )
 
         # Daily-level outperformance signal: on days where DEN is busier than MCO,
@@ -1269,24 +1421,26 @@ with overview_tab:
             hypothesis_df.groupby(["airport_local_date", "airport_code"], as_index=False)
             .agg(
                 avg_load=("traffic_load_effective", "mean"),
-                avg_delay_index=("delay_index_best", "mean"),
+                avg_faa_downtime_minutes=("faa_downtime_minutes", "mean"),
             )
         )
         if not daily_ops.empty:
             daily_ops["avg_load"] = to_numeric_series(daily_ops["avg_load"], index=daily_ops.index)
-            daily_ops["avg_delay_index"] = to_numeric_series(daily_ops["avg_delay_index"], index=daily_ops.index)
-            daily_ops["delay_per_100_load"] = daily_ops["avg_delay_index"] / (daily_ops["avg_load"] / 100.0)
+            daily_ops["avg_faa_downtime_minutes"] = to_numeric_series(
+                daily_ops["avg_faa_downtime_minutes"], index=daily_ops.index
+            )
+            daily_ops["downtime_per_100_load"] = daily_ops["avg_faa_downtime_minutes"] / (daily_ops["avg_load"] / 100.0)
 
             daily_pivot = daily_ops.pivot(
                 index="airport_local_date",
                 columns="airport_code",
-                values=["avg_load", "delay_per_100_load"],
+                values=["avg_load", "downtime_per_100_load"],
             )
             if isinstance(daily_pivot, pd.DataFrame) and {"DEN", "MCO"}.issubset(set(daily_pivot.columns.get_level_values(1))):
                 den_load_daily = daily_pivot[("avg_load", "DEN")]
                 mco_load_daily = daily_pivot[("avg_load", "MCO")]
-                den_dpl_daily = daily_pivot[("delay_per_100_load", "DEN")]
-                mco_dpl_daily = daily_pivot[("delay_per_100_load", "MCO")]
+                den_dpl_daily = daily_pivot[("downtime_per_100_load", "DEN")]
+                mco_dpl_daily = daily_pivot[("downtime_per_100_load", "MCO")]
                 valid_days = den_load_daily.notna() & mco_load_daily.notna() & den_dpl_daily.notna() & mco_dpl_daily.notna() & (mco_load_daily > 0)
                 den_busier = den_load_daily >= (mco_load_daily * 1.05)
                 den_better_eff = den_dpl_daily < mco_dpl_daily
@@ -1295,7 +1449,7 @@ with overview_tab:
                 if busier_days > 0:
                     denver_daily_outperformance_note = (
                         f"Daily view: DEN was busier than MCO on {busier_days} day(s) in this range and "
-                        f"still had better delay-per-100-load on {better_when_busier_days} of those day(s)."
+                        f"still had better downtime-per-100-load on {better_when_busier_days} of those day(s)."
                     )
 
         def build_ratio_df(metric_defs: list[tuple[str, str]]) -> pd.DataFrame:
@@ -1360,11 +1514,24 @@ with overview_tab:
                 airline_ratio_df["metric"] == "Airline Delay Severity", "mco_vs_den_ratio"
             ].dropna()
             if not airline_core.empty:
-                airline_verdict = "Supports hypothesis" if airline_core.iloc[0] > 1.0 else "Does not support hypothesis"
-                st.write(
-                    f"**Airline verdict:** {airline_verdict} "
-                    f"(MCO/DEN airline severity ratio = {airline_core.iloc[0]:.2f})."
+                airline_core_val = float(airline_core.iloc[0])
+                airline_conf = confidence_tag(
+                    sample_size=len(airline_slot_pairs) if isinstance(airline_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=airline_ci,
                 )
+                if not airline_gate_ok:
+                    st.info("Airline verdict withheld: sample-size gates not met.")
+                else:
+                    airline_verdict = "Supports hypothesis" if airline_core_val > 1.0 else "Does not support hypothesis"
+                    ci_text = ""
+                    if airline_ci is not None:
+                        ci_text = f", 95% CI [{airline_ci[0]:.2f}, {airline_ci[1]:.2f}]"
+                    st.write(
+                        f"**Airline verdict:** {airline_verdict} "
+                        f"(MCO/DEN airline severity ratio = {airline_core_val:.2f}{ci_text}). "
+                        f"Confidence: **{airline_conf}**."
+                    )
 
         st.markdown("### Operational Load Comparison")
         st.dataframe(
@@ -1375,7 +1542,8 @@ with overview_tab:
                         "snapshots",
                         "average_traffic_load",
                         "average_delay_index",
-                        "delay_per_100_load",
+                        "average_faa_downtime_minutes",
+                        "downtime_per_100_load",
                         "faa_restriction_rate_percent",
                     ]
                 ]
@@ -1385,9 +1553,9 @@ with overview_tab:
         operational_ratio_df = build_ratio_df(
             [
                 ("average_traffic_load", "Average Traffic Load"),
-                ("average_delay_index", "Average Delay Severity Index"),
-                ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
-                ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
+                ("average_delay_index", "Average FAA Severity Index (Context)"),
+                ("average_faa_downtime_minutes", "Average FAA Downtime (Minutes)"),
+                ("downtime_per_100_load", "FAA Downtime Minutes Per 100 Traffic Load"),
             ]
         )
         if not operational_ratio_df.empty:
@@ -1407,18 +1575,31 @@ with overview_tab:
             operational_ratio_chart.add_hline(y=1.0, line_dash="dash", line_color="gray")
             st.plotly_chart(operational_ratio_chart, width="stretch")
             operational_core = operational_ratio_df.loc[
-                operational_ratio_df["metric"] == "Delay Index Per 100 Traffic Load", "mco_vs_den_ratio"
+                operational_ratio_df["metric"] == "FAA Downtime Minutes Per 100 Traffic Load", "mco_vs_den_ratio"
             ].dropna()
             if not operational_core.empty:
-                operational_verdict = "Supports hypothesis" if operational_core.iloc[0] > 1.0 else "Does not support hypothesis"
-                st.write(
-                    f"**Operational verdict:** {operational_verdict} "
-                    f"(MCO/DEN delay-per-100-load ratio = {operational_core.iloc[0]:.2f})."
+                operational_core_val = float(operational_core.iloc[0])
+                operational_conf = confidence_tag(
+                    sample_size=len(operational_slot_pairs) if isinstance(operational_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=operational_ci,
                 )
-                if denver_load_outperformance_note is not None:
-                    st.info(denver_load_outperformance_note)
-                if denver_daily_outperformance_note is not None:
-                    st.info(denver_daily_outperformance_note)
+                if not operational_gate_ok:
+                    st.info("Operational verdict withheld: sample-size gates not met.")
+                else:
+                    operational_verdict = "Supports hypothesis" if operational_core_val > 1.0 else "Does not support hypothesis"
+                    ci_text = ""
+                    if operational_ci is not None:
+                        ci_text = f", 95% CI [{operational_ci[0]:.2f}, {operational_ci[1]:.2f}]"
+                    st.write(
+                        f"**Operational verdict:** {operational_verdict} "
+                        f"(MCO/DEN downtime-per-100-load ratio = {operational_core_val:.2f}{ci_text}). "
+                        f"Confidence: **{operational_conf}**."
+                    )
+                    if denver_load_outperformance_note is not None:
+                        st.info(denver_load_outperformance_note)
+                    if denver_daily_outperformance_note is not None:
+                        st.info(denver_daily_outperformance_note)
 
         st.markdown("### Combined Evidence Comparison")
         st.dataframe(
@@ -1429,7 +1610,8 @@ with overview_tab:
                         "snapshots",
                         "average_traffic_load",
                         "average_delay_index",
-                        "delay_per_100_load",
+                        "average_faa_downtime_minutes",
+                        "downtime_per_100_load",
                         "faa_restriction_rate_percent",
                         "airline_flights",
                         "average_airline_delay_min",
@@ -1443,8 +1625,7 @@ with overview_tab:
         )
         combined_ratio_df = build_ratio_df(
             [
-                ("delay_per_100_load", "Delay Index Per 100 Traffic Load"),
-                ("faa_restriction_rate_percent", "FAA Restriction Snapshot Rate (%)"),
+                ("downtime_per_100_load", "FAA Downtime Minutes Per 100 Traffic Load"),
                 ("average_airline_delay_min", "Average Airline Delay (Minutes)"),
                 ("cancel_rate_percent", "Cancellation Rate (%)"),
                 ("average_airline_severity", "Airline Delay Severity"),
@@ -1468,7 +1649,7 @@ with overview_tab:
             st.plotly_chart(combined_ratio_chart, width="stretch")
 
             operational_core_series = combined_ratio_df.loc[
-                combined_ratio_df["metric"] == "Delay Index Per 100 Traffic Load", "mco_vs_den_ratio"
+                combined_ratio_df["metric"] == "FAA Downtime Minutes Per 100 Traffic Load", "mco_vs_den_ratio"
             ].dropna()
             airline_core_series = combined_ratio_df.loc[
                 combined_ratio_df["metric"] == "Airline Delay Severity", "mco_vs_den_ratio"
@@ -1476,9 +1657,17 @@ with overview_tab:
 
             operational_core = float(operational_core_series.iloc[0]) if not operational_core_series.empty else None
             airline_core = float(airline_core_series.iloc[0]) if not airline_core_series.empty else None
+            if not operational_gate_ok:
+                operational_core = None
+            if not airline_gate_ok:
+                airline_core = None
 
             if operational_core is not None and airline_core is not None:
-                combined_ratio = float((operational_core + airline_core) / 2.0)
+                op_weight = float(len(operational_slot_pairs)) if isinstance(operational_slot_pairs, pd.DataFrame) else 1.0
+                air_weight = float(len(airline_slot_pairs)) if isinstance(airline_slot_pairs, pd.DataFrame) else 1.0
+                combined_ratio = float(
+                    ((operational_core * op_weight) + (airline_core * air_weight)) / (op_weight + air_weight)
+                )
                 operational_supports = operational_core > 1.0
                 airline_supports = airline_core > 1.0
                 if operational_supports and airline_supports:
@@ -1493,24 +1682,54 @@ with overview_tab:
                 st.write(
                     f"**Combined verdict:** Evidence {verdict_text}. "
                     f"Operational ratio = {operational_core:.2f}, airline ratio = {airline_core:.2f}, "
-                    f"mean core ratio = {combined_ratio:.2f}."
+                    f"weighted core ratio = {combined_ratio:.2f}."
                 )
+                op_conf = confidence_tag(
+                    sample_size=len(operational_slot_pairs) if isinstance(operational_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=operational_ci,
+                )
+                air_conf = confidence_tag(
+                    sample_size=len(airline_slot_pairs) if isinstance(airline_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=airline_ci,
+                )
+                combined_conf = "Low"
+                if op_conf == "High" and air_conf == "High":
+                    combined_conf = "High"
+                elif op_conf in {"Medium", "High"} and air_conf in {"Medium", "High"}:
+                    combined_conf = "Medium"
+                st.caption(f"Combined confidence: **{combined_conf}** (Operational={op_conf}, Airline={air_conf}).")
                 if denver_load_outperformance_note is not None:
                     st.info(denver_load_outperformance_note)
                 if denver_daily_outperformance_note is not None:
                     st.info(denver_daily_outperformance_note)
             elif operational_core is not None:
                 verdict_text = "supports the hypothesis" if operational_core > 1.0 else "does not support the hypothesis"
+                op_conf = confidence_tag(
+                    sample_size=len(operational_slot_pairs) if isinstance(operational_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=operational_ci,
+                )
                 st.write(
                     f"**Combined verdict:** Airline-side core metric is unavailable in this range. "
-                    f"Operational evidence {verdict_text} (ratio = {operational_core:.2f})."
+                    f"Operational evidence {verdict_text} (ratio = {operational_core:.2f}). "
+                    f"Confidence: **{op_conf}**."
                 )
             elif airline_core is not None:
                 verdict_text = "supports the hypothesis" if airline_core > 1.0 else "does not support the hypothesis"
+                air_conf = confidence_tag(
+                    sample_size=len(airline_slot_pairs) if isinstance(airline_slot_pairs, pd.DataFrame) else 0,
+                    min_needed=MIN_SHARED_SLOTS,
+                    ci=airline_ci,
+                )
                 st.write(
                     f"**Combined verdict:** Operational core metric is unavailable in this range. "
-                    f"Airline evidence {verdict_text} (ratio = {airline_core:.2f})."
+                    f"Airline evidence {verdict_text} (ratio = {airline_core:.2f}). "
+                    f"Confidence: **{air_conf}**."
                 )
+            else:
+                st.info("Combined verdict withheld: operational and airline evidence did not both pass minimum sample gates.")
 
         st.divider()
         # -----------------------
