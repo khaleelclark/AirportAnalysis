@@ -481,6 +481,10 @@ with overview_tab:
     def format_time_axis_12h(chart):
         chart.update_xaxes(tickformat="%I:%M %p<br>%B %d", hoverformat="%I:%M %p %B %d")
         return chart
+
+    def format_date_axis(chart):
+        chart.update_xaxes(tickformat="%B %d", hoverformat="%I:%M %p %B %d")
+        return chart
     
     
     def run_manual_sync_collectors() -> list[dict]:
@@ -1124,17 +1128,10 @@ with overview_tab:
                 st.markdown("<div style='padding: 0 12px;'>", unsafe_allow_html=True)
                 st.write(f"**Snapshot Time (Local):** {collected_local}")
                 st.markdown("#### Snapshot Metrics")
-                m11, m12 = st.columns(2)
-                with m11:
-                    st.metric(
-                        label=f"{airport_row['airport_code']} Delay Severity Index (FAA)",
-                        value="—" if pd.isna(airport_row["delay_index_best"]) else round(float(airport_row["delay_index_best"]), 3),
-                    )
-                with m12:
-                    st.metric(
-                        label=f"{airport_row['airport_code']} Airline Delay Severity Index",
-                        value="N/A" if airline_row is None else airline_row["score"],
-                    )
+                st.metric(
+                    label=f"{airport_row['airport_code']} Airline Delay Severity Index",
+                    value="N/A" if airline_row is None else airline_row["score"],
+                )
 
                 m21, m22 = st.columns(2)
                 with m21:
@@ -1789,12 +1786,12 @@ with overview_tab:
                     markers=True,
                     title="Active FAA Restriction Count Over Time",
                     labels={
-                        "collected_at_local": "Snapshot Time (Local)",
+                        "collected_at_local": "Snapshot Date (Local; hover for time)",
                         "faa_event_count": "Active FAA Restrictions",
                         "airport_code": "Airport",
                     },
                 )
-                format_time_axis_12h(timeline_chart)
+                format_date_axis(timeline_chart)
                 st.plotly_chart(timeline_chart, width="stretch")
 
             delayed_daily = (
@@ -1915,12 +1912,12 @@ with overview_tab:
                         markers=True,
                         title="Airline Delay Severity Index Over Time",
                         labels={
-                            "collected_at_local": "Snapshot Time (Local)",
+                            "collected_at_local": "Snapshot Date (Local; hover for time)",
                             "airline_delay_severity_index": "Airline Delay Severity Index",
                             "airport_code": "Airport",
                         },
                     )
-                    format_time_axis_12h(airline_severity_chart)
+                    format_date_axis(airline_severity_chart)
                     st.plotly_chart(airline_severity_chart, width="stretch")
 
                 with a2:
@@ -1935,7 +1932,7 @@ with overview_tab:
                         title="Longest Airline Delay By Snapshot",
                         custom_data=["max_delay_hr_min", "max_delay_min"],
                         labels={
-                            "collected_at_local": "Snapshot Time (Local)",
+                            "collected_at_local": "Snapshot Date (Local; hover for time)",
                             "max_delay_hours": "Longest Airline Delay (Hours)",
                             "airport_code": "Airport",
                         },
@@ -1948,7 +1945,7 @@ with overview_tab:
                             "(%{customdata[1]:.0f} minutes)<extra></extra>"
                         ),
                     )
-                    format_time_axis_12h(longest_delay_chart)
+                    format_date_axis(longest_delay_chart)
                     st.plotly_chart(longest_delay_chart, width="stretch")
 
                 daily_cancel = (
@@ -2065,13 +2062,13 @@ with overview_tab:
                 markers=True,
                 title=f"Delay Severity Index (Rolling Average, {rolling_window} Points)",
                 labels={
-                    "collected_at_local": "Snapshot Time (Local)",
+                    "collected_at_local": "Snapshot Date (Local; hover for time)",
                     "delay_index_roll": "Delay Severity Index",
                     "airport_code": "Airport",
                 },
                 color_discrete_map=AIRPORT_COLOR_MAP,
             )
-            format_time_axis_12h(trend_delay_chart)
+            format_date_axis(trend_delay_chart)
             st.plotly_chart(trend_delay_chart, width="stretch")
 
         with trend_col2:
@@ -2083,13 +2080,13 @@ with overview_tab:
                 markers=True,
                 title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
                 labels={
-                    "collected_at_local": "Snapshot Time (Local)",
+                    "collected_at_local": "Snapshot Date (Local; hover for time)",
                     "stress_roll": "Operational Stress Score",
                     "airport_code": "Airport",
                 },
                 color_discrete_map=AIRPORT_COLOR_MAP,
             )
-            format_time_axis_12h(trend_stress_chart)
+            format_date_axis(trend_stress_chart)
             st.plotly_chart(trend_stress_chart, width="stretch")
 
         st.divider()
