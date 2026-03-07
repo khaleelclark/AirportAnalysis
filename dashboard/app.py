@@ -29,8 +29,9 @@ with about_tab:
         Are delays at MCO (Orlando International Airport) proportionate to operational load, or does MCO perform disproportionately worse than DEN (Denver International Airport) after controlling for traffic pressure?
         
         ### Project Hypothesis
-        Based on repeated personal travel experience, MCO appears to deliver a worse operational experience than DEN.
-        This project tests that claim with live FAA restrictions, live traffic load, and airline delay/cancellation/diversion outcomes across both airports over time.
+        Based on personal travel experience, MCO appears to deliver a worse operational experience than DEN despite generally facing lower operational load and fewer environmental constraints.
+        If DEN can sustain better performance under heavier and more complex conditions, then MCO's poorer outcomes suggest factors beyond external load alone.
+        This project tests whether MCO has disproportionately worse operational outcomes than DEN after normalizing for load and timing context, using FAA downtime and airline disruption metrics as the primary evidence.
 
         ### Data Sources
         - **FAA NASStatus API** for airport-level delay programs and restrictions
@@ -385,6 +386,7 @@ with overview_tab:
     
     
     LOCAL_TZ = datetime.now().astimezone().tzinfo
+    OPERATIONAL_DAY_START_HOUR = 7
     AIRPORT_TIMEZONES = {
         "MCO": ZoneInfo("America/New_York"),
         "DEN": ZoneInfo("America/Denver"),
@@ -410,8 +412,9 @@ with overview_tab:
         for airport_key, idx in out.groupby("airport_code").groups.items():
             tz = AIRPORT_TIMEZONES.get(str(airport_key), LOCAL_TZ)
             local_series = tz_convert_series(out.loc[idx, ts_col], tz)
+            operational_local = local_series - pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
             out.loc[idx, "airport_local_slot"] = local_series.dt.strftime("%Y-%m-%d %H:00")
-            out.loc[idx, "airport_local_date"] = local_series.dt.strftime("%Y-%m-%d")
+            out.loc[idx, "airport_local_date"] = operational_local.dt.strftime("%Y-%m-%d")
             out.loc[idx, "airport_local_hour"] = local_series.dt.hour
             out.loc[idx, "airport_local_dow"] = local_series.dt.day_name()
         out["airport_local_hour"] = pd.to_numeric(out["airport_local_hour"], errors="coerce")
@@ -485,6 +488,12 @@ with overview_tab:
     def format_date_axis(chart):
         chart.update_xaxes(tickformat="%B %d", hoverformat="%I:%M %p %B %d")
         return chart
+
+    def to_plot_local_naive(series: pd.Series) -> pd.Series:
+        dt_index = pd.DatetimeIndex(series)
+        if dt_index.tz is not None:
+            dt_index = dt_index.tz_localize(None)
+        return pd.Series(dt_index, index=series.index)
     
     
     def run_manual_sync_collectors() -> list[dict]:
@@ -1778,15 +1787,16 @@ with overview_tab:
 
             with chart_col2:
                 timeline_df = sort_values_df(faa_status_history, by=["airport_code", "collected_at"]).copy()
+                timeline_df["collected_at_local_plot"] = to_plot_local_naive(timeline_df["collected_at_local"])
                 timeline_chart = px.line(
                     timeline_df,
-                    x="collected_at_local",
+                    x="collected_at_local_plot",
                     y="faa_event_count",
                     color="airport_code",
                     markers=True,
                     title="Active FAA Restriction Count Over Time",
                     labels={
-                        "collected_at_local": "Snapshot Date (Local; hover for time)",
+                        "collected_at_local_plot": "Snapshot Date (Local; hover for time)",
                         "faa_event_count": "Active FAA Restrictions",
                         "airport_code": "Airport",
                     },
@@ -1796,7 +1806,9 @@ with overview_tab:
 
             delayed_daily = (
                 faa_status_history.assign(
-                    local_date=series_date(faa_status_history["collected_at_local"]),
+                    local_date=series_date(
+                        faa_status_history["collected_at_local"] - pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
+                    ),
                     has_delay=faa_status_history["faa_event_count"] > 0,
                 )
                 .groupby(["local_date", "airport_code"], as_index=False)
@@ -1806,17 +1818,20 @@ with overview_tab:
                 )
             )
             delayed_daily["local_date"] = pd.to_datetime(delayed_daily["local_date"])
+            delayed_daily["operational_day_start_local"] = (
+                delayed_daily["local_date"] + pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
+            )
 
             delayed_daily_chart = px.bar(
                 delayed_daily,
-                x="local_date",
+                x="operational_day_start_local",
                 y="delayed_snapshots",
                 color="airport_code",
                 barmode="group",
                 custom_data=["total_snapshots"],
                 title="Daily FAA Delayed Snapshot Count",
                 labels={
-                    "local_date": "Local Date",
+                    "operational_day_start_local": "Operational Day Start (Local)",
                     "delayed_snapshots": "Snapshots With Active FAA Restrictions",
                     "airport_code": "Airport",
                 },
@@ -1901,18 +1916,19 @@ with overview_tab:
                     (cancel_rate_snap * 4.0).clip(upper=1.5) +
                     (divert_rate_snap * 2.0).clip(upper=0.5)
                 ).clip(upper=5.0)
+                airline_snap["collected_at_local_plot"] = to_plot_local_naive(airline_snap["collected_at_local"])
 
                 a1, a2 = st.columns(2)
                 with a1:
                     airline_severity_chart = px.line(
                         airline_snap,
-                        x="collected_at_local",
+                        x="collected_at_local_plot",
                         y="airline_delay_severity_index",
                         color="airport_code",
                         markers=True,
                         title="Airline Delay Severity Index Over Time",
                         labels={
-                            "collected_at_local": "Snapshot Date (Local; hover for time)",
+                            "collected_at_local_plot": "Snapshot Date (Local; hover for time)",
                             "airline_delay_severity_index": "Airline Delay Severity Index",
                             "airport_code": "Airport",
                         },
@@ -1925,14 +1941,14 @@ with overview_tab:
                     airline_snap["max_delay_hours"] = airline_snap["max_delay_min"] / 60.0
                     longest_delay_chart = px.line(
                         airline_snap,
-                        x="collected_at_local",
+                        x="collected_at_local_plot",
                         y="max_delay_hours",
                         color="airport_code",
                         markers=True,
                         title="Longest Airline Delay By Snapshot",
                         custom_data=["max_delay_hr_min", "max_delay_min"],
                         labels={
-                            "collected_at_local": "Snapshot Date (Local; hover for time)",
+                            "collected_at_local_plot": "Snapshot Date (Local; hover for time)",
                             "max_delay_hours": "Longest Airline Delay (Hours)",
                             "airport_code": "Airport",
                         },
@@ -1949,7 +1965,11 @@ with overview_tab:
                     st.plotly_chart(longest_delay_chart, width="stretch")
 
                 daily_cancel = (
-                    flight_view.assign(local_date=series_date(flight_view["collected_at_local"]))
+                    flight_view.assign(
+                        local_date=series_date(
+                            flight_view["collected_at_local"] - pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
+                        )
+                    )
                     .groupby(["local_date", "airport_code"], as_index=False)
                     .agg(
                         flights=("delay_minutes", "size"),
@@ -1966,17 +1986,20 @@ with overview_tab:
                     (cancelled_count / flights_count).replace([float("inf"), float("-inf")], 0).fillna(0) * 100.0
                 )
                 daily_cancel["local_date"] = pd.to_datetime(daily_cancel["local_date"])
+                daily_cancel["operational_day_start_local"] = (
+                    daily_cancel["local_date"] + pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
+                )
 
                 cancel_rate_chart = px.bar(
                     daily_cancel,
-                    x="local_date",
+                    x="operational_day_start_local",
                     y="cancel_rate_percent",
                     color="airport_code",
                     barmode="group",
                     custom_data=["cancelled_count", "flights"],
                     title="Daily Airline Cancellation Rate Comparison",
                     labels={
-                        "local_date": "Local Date",
+                        "operational_day_start_local": "Operational Day Start (Local)",
                         "cancel_rate_percent": "Cancellation Rate (%)",
                         "airport_code": "Airport",
                     },
@@ -2045,6 +2068,7 @@ with overview_tab:
         trend = sort_values_df(filtered, by=["airport_code", "collected_at"]).copy()
         for numeric_col in ["delay_index_best", "traffic_load_effective", "operational_stress_score"]:
             trend[numeric_col] = pd.to_numeric(trend[numeric_col], errors="coerce")
+        trend["collected_at_local_plot"] = to_plot_local_naive(trend["collected_at_local"])
         def rolling_mean(series: pd.Series) -> pd.Series:
             return series.rolling(rolling_window, min_periods=1).mean()
 
@@ -2056,13 +2080,13 @@ with overview_tab:
         with trend_col1:
             trend_delay_chart = px.line(
                 trend,
-                x="collected_at_local",
+                x="collected_at_local_plot",
                 y="delay_index_roll",
                 color="airport_code",
                 markers=True,
                 title=f"Delay Severity Index (Rolling Average, {rolling_window} Points)",
                 labels={
-                    "collected_at_local": "Snapshot Date (Local; hover for time)",
+                    "collected_at_local_plot": "Snapshot Date (Local; hover for time)",
                     "delay_index_roll": "Delay Severity Index",
                     "airport_code": "Airport",
                 },
@@ -2074,13 +2098,13 @@ with overview_tab:
         with trend_col2:
             trend_stress_chart = px.line(
                 trend,
-                x="collected_at_local",
+                x="collected_at_local_plot",
                 y="stress_roll",
                 color="airport_code",
                 markers=True,
                 title=f"Operational Stress Score (Rolling Average, {rolling_window} Points)",
                 labels={
-                    "collected_at_local": "Snapshot Date (Local; hover for time)",
+                    "collected_at_local_plot": "Snapshot Date (Local; hover for time)",
                     "stress_roll": "Operational Stress Score",
                     "airport_code": "Airport",
                 },
