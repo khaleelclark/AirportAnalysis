@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -88,3 +89,24 @@ def test_normalize_flight_row_sets_flags_and_provider_fields():
     assert out["diverted"] == 0
     assert out["delay_minutes"] == 60.0
     assert out["ident"] == "DL123"
+
+
+def test_in_local_collection_window_bounds():
+    assert flights.in_local_collection_window(datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc)) is True
+    assert flights.in_local_collection_window(datetime(2026, 1, 1, 23, 0, tzinfo=timezone.utc)) is True
+    assert flights.in_local_collection_window(datetime(2026, 1, 1, 8, 59, tzinfo=timezone.utc)) is False
+
+
+def test_make_external_id_is_stable():
+    flight = {
+        "flight_iata": "UA101",
+        "airline_iata": "UA",
+        "dep_iata": "DEN",
+        "arr_iata": "MCO",
+        "dep_time": "2026-02-20T10:00:00Z",
+        "arr_time": "2026-02-20T13:30:00Z",
+    }
+    first = flights.make_external_id(flight, direction="departure", airport="DEN")
+    second = flights.make_external_id(flight, direction="departure", airport="DEN")
+    assert first == second
+    assert first.startswith("airlabs:")
