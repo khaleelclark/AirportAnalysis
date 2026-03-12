@@ -102,6 +102,7 @@ Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\stre
 - Documents collection cadence and guardrails:
   - FAA/Traffic: every 10 minutes
   - AirLabs: strict per-airport 2-hour minimum call interval, only during each airport's local 9 AM-11 PM window
+- Notes readability-focused dashboard simplifications (daily-focused airline trends and a single combined weekday timing chart).
 
 ### Calculation Details
 - Defines all core formulas (delay severity, airline severity, traffic load, operational stress).
@@ -111,14 +112,27 @@ Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\stre
 - Applies minimum sample-size quality gates before showing verdicts.
 - Reports bootstrap 95% confidence intervals and Low/Medium/High confidence tags.
 - Uses reliability-weighted combined core evidence (not a simple equal average).
+- Uses a Decision Summary first (two primary metrics + top-line verdict), with secondary metrics kept in supporting context.
 - Documents DEN outperformance callouts when DEN carries higher load but remains more efficient.
+- FAA Status History now emphasizes:
+  - Restriction Snapshot Rate
+  - Most Common Restriction
+  - Peak Active Restrictions
+  - Daily restriction-rate and daily-peak charts
+- Airline Delay Impact now emphasizes daily views:
+  - Daily Airline Delay Severity Index
+  - Daily Longest Airline Delay (robustly summarized from snapshot maxima)
+  - Daily Airline Cancellation Rate Comparison
+- Delay Timing Breakdown now uses a single combined FAA+airline weekday chart (half-hour timing view removed for readability).
 
 ### How To Read This Dashboard (inside Dashboard Overview)
 - Explains what each metric means and how to interpret comparisons.
 - Includes cadence notes so users do not misread stale timestamps as failed collection.
 - Notes that MCO vs DEN comparisons are made on matched airport-local time slots.
 - Notes that verdicts can be withheld if quality gates are not met.
+- Read Decision Summary first; use Supporting Context for drill-down.
 - Clarifies that manual sync can run collectors immediately and can force an on-demand AirLabs call.
+- Notes that the timing section is intentionally simplified to reduce skew/noise in interpretation.
 
 ## Tests
 
