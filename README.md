@@ -30,6 +30,7 @@ The hypothesis view also highlights when DEN is handling higher load but still d
 ## Project Structure
 
 - `dashboard/app.py`: Streamlit dashboard
+- `dashboard/content.py`: dashboard tab/help copy separated from app logic
 - `src/db.py`: schema/bootstrap
 - `src/collect_delays.py`: FAA collector
 - `src/collect_traffic.py`: traffic collector
@@ -37,6 +38,7 @@ The hypothesis view also highlights when DEN is handling higher load but still d
 - `migrations/*.sql`: schema updates
 - `scripts/*.sh`: scheduled collector wrappers
 - `tests/test_basic.py`: parser/scoring unit tests
+- `API.md`: source-to-storage API contract and handoff spec
 
 ## Quick Start
 

@@ -25,5 +25,8 @@ ENV/
 logs/
 *.log
 
+# Runtime collector state
+data/collector_state/
+
 # OS files
 .DS_Store
