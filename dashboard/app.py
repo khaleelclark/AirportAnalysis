@@ -29,7 +29,6 @@ with about_tab:
 with calc_tab:
     st.markdown(CALC_MARKDOWN)
 
-# noinspection PyShadowingNames,PyShadowingNamesInspection,DuplicatedCode,PyPandasTruthValueIsAmbiguousInspection,PyArgumentList
 with overview_tab:
     st.markdown(
         "This dashboard tracks live operational conditions at **MCO** and **DEN**. "
@@ -102,6 +101,10 @@ with overview_tab:
     def series_hour(series: pd.Series) -> pd.Series:
         dt_index = pd.DatetimeIndex(series)
         return pd.Series(dt_index.hour, index=series.index)
+
+    def series_minute(series: pd.Series) -> pd.Series:
+        dt_index = pd.DatetimeIndex(series)
+        return pd.Series(dt_index.minute, index=series.index)
 
     def series_day_name(series: pd.Series) -> pd.Series:
         dt_index = pd.DatetimeIndex(series)
@@ -215,17 +218,20 @@ with overview_tab:
         out["airport_local_hour"] = pd.NA
         out["airport_local_half_hour"] = pd.NA
         out["airport_local_dow"] = pd.NA
-        for airport_key, idx in out.groupby("airport_code").groups.items():
-            tz = AIRPORT_TIMEZONES.get(str(airport_key), LOCAL_TZ)
-            local_series = tz_convert_series(out.loc[idx, ts_col], tz)
+        for airport_code, airport_frame in out.groupby("airport_code", sort=False):
+            airport_rows = airport_frame.index
+            tz = AIRPORT_TIMEZONES.get(str(airport_code), LOCAL_TZ)
+            local_series = tz_convert_series(airport_frame[ts_col], tz)
             operational_local = local_series - pd.Timedelta(hours=OPERATIONAL_DAY_START_HOUR)
-            out.loc[idx, "airport_local_slot"] = local_series.dt.strftime("%Y-%m-%d %H:00")
-            out.loc[idx, "airport_local_date"] = operational_local.dt.strftime("%Y-%m-%d")
-            out.loc[idx, "airport_local_hour"] = local_series.dt.hour
-            out.loc[idx, "airport_local_half_hour"] = (
-                local_series.dt.hour + (local_series.dt.minute >= 30).astype(int) * 0.5
+            local_hour = series_hour(local_series)
+            half_hour_offset = series_minute(local_series).ge(30).astype(int) * 0.5
+            out.loc[airport_rows, "airport_local_slot"] = local_series.dt.strftime("%Y-%m-%d %H:00")
+            out.loc[airport_rows, "airport_local_date"] = operational_local.dt.strftime("%Y-%m-%d")
+            out.loc[airport_rows, "airport_local_hour"] = local_hour
+            out.loc[airport_rows, "airport_local_half_hour"] = (
+                local_hour + half_hour_offset
             )
-            out.loc[idx, "airport_local_dow"] = local_series.dt.day_name()
+            out.loc[airport_rows, "airport_local_dow"] = series_day_name(local_series)
         out["airport_local_hour"] = pd.to_numeric(out["airport_local_hour"], errors="coerce")
         out["airport_local_half_hour"] = pd.to_numeric(out["airport_local_half_hour"], errors="coerce")
         return out
@@ -308,7 +314,7 @@ with overview_tab:
     
     def run_manual_sync_collectors() -> list[dict]:
         python_bin = sys.executable
-        commands = [
+        commands: list[tuple[str, list[str], dict[str, str] | None]] = [
             ("FAA Delays", [python_bin, "src/collect_delays.py"], None),
             ("Live Airspace Traffic", [python_bin, "src/collect_traffic.py"], None),
             ("Airline Delay", [python_bin, "src/collect_flights.py"], {"AIRLABS_FORCE_SYNC": "1"}),
@@ -937,21 +943,21 @@ with overview_tab:
         else:
             card_cols = st.columns(len(latest_by_airport))
         
-        for idx, airport_row in enumerate(latest_by_airport_rows):
-            airport_key = str(airport_row["airport_code"])
+        for card_index, airport_row in enumerate(latest_by_airport_rows):
+            card_airport_code = str(airport_row["airport_code"])
             collected_local = format_snapshot_time_for_airport(
                 pd.to_datetime(airport_row["collected_at"], utc=True),
-                airport_key,
+                card_airport_code,
             )
-            traffic_row = traffic_latest_map.get(airport_key)
-            airline_row = airline_severity_map.get(airport_key)
-            airline_range_row = airline_range_map.get(airport_key)
-            airline_max_today = longest_airline_today_map.get(airport_key)
+            traffic_row = traffic_latest_map.get(card_airport_code)
+            airline_row = airline_severity_map.get(card_airport_code)
+            airline_range_row = airline_range_map.get(card_airport_code)
+            airline_max_today = longest_airline_today_map.get(card_airport_code)
             longest_any_recorded = max(
-                [v for v in [longest_airline_all_time_map.get(airport_key), longest_faa_all_time_map.get(airport_key)] if v is not None],
+                [v for v in [longest_airline_all_time_map.get(card_airport_code), longest_faa_all_time_map.get(card_airport_code)] if v is not None],
                 default=None
             )
-            with card_cols[idx]:
+            with card_cols[card_index]:
                 st.markdown("<div style='padding: 0 12px;'>", unsafe_allow_html=True)
                 st.write(f"**Snapshot Time (Local):** {collected_local}")
                 st.markdown("#### Snapshot Metrics")
@@ -998,7 +1004,7 @@ with overview_tab:
                     )
                 st.write(
                     f"**FAA Update Time (Local):** "
-                    f"{format_faa_update_time_for_airport(airport_row.get('faa_update_time'), airport_key)}"
+                    f"{format_faa_update_time_for_airport(airport_row.get('faa_update_time'), card_airport_code)}"
                 )
                 st.caption("[View FAA NASStatus details](https://nasstatus.faa.gov/)")
                 st.write(f"**FAA Status:** {airport_row.get('faa_status', '—') if airport_row.get('faa_status') else '—'}")
@@ -1013,7 +1019,7 @@ with overview_tab:
                 else:
                     airline_time = format_snapshot_time_for_airport(
                         pd.to_datetime(airline_row["snapshot_time"], utc=True),
-                        airport_key,
+                        card_airport_code,
                     )
                     st.write(f"**Airline Snapshot Time (Local):** {airline_time}")
                     range_cancel_text = "N/A"
@@ -1032,7 +1038,7 @@ with overview_tab:
                 else:
                     traffic_time_local = format_snapshot_time_for_airport(
                         pd.to_datetime(traffic_row["collected_at"], utc=True),
-                        airport_key,
+                        card_airport_code,
                     )
                     st.write(f"**Traffic Snapshot Time (Local):** {traffic_time_local}")
                     lc1, lc2, lc3 = st.columns(3)
@@ -1239,7 +1245,7 @@ with overview_tab:
                     f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} downtime minutes per 100 load)."
                 )
 
-        # Daily-level outperformance signal: on days where DEN is busier than MCO,
+        # Daily-level outperformance signal: on days when DEN is busier than MCO,
         # count how often DEN still has lower delay-per-100-load.
         daily_ops = (
             hypothesis_df.groupby(["airport_local_date", "airport_code"], as_index=False)
@@ -1472,9 +1478,9 @@ with overview_tab:
             st.markdown("#### FAA Restriction Summary")
             summary_cols = st.columns(2)
             summary_by_airport = {str(r["airport_code"]): r for r in records(faa_summary)}
-            for idx, airport in enumerate(selected_airports):
+            for summary_index, airport in enumerate(selected_airports):
                 rec = summary_by_airport.get(airport)
-                with summary_cols[idx]:
+                with summary_cols[summary_index]:
                     st.markdown(f"**{airport}**")
                     if rec is None:
                         st.info("No FAA snapshots in selected range.")
