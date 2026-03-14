@@ -2,6 +2,10 @@
   <dictionary name="project">
     <words>
       <w>aerodatabox</w>
+      <w>customdata</w>
+      <w>nasstatus</w>
+      <w>nunique</w>
+      <w>tozero</w>
     </words>
   </dictionary>
 </component>
