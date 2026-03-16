@@ -1,7 +1,7 @@
-requests
-pandas
-numpy
-streamlit
-plotly
-python-dotenv
-pytest
+requests>=2.32,<3
+pandas>=2.2,<3
+numpy>=1.26,<3
+streamlit>=1.41,<2
+plotly>=5.24,<7
+python-dotenv>=1.0,<2
+pytest>=8,<10
