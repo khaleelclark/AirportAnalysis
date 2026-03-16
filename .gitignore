@@ -21,12 +21,17 @@ venv/
 env/
 ENV/
 
+# IDE settings
+.idea/
+
 # Logs
 logs/
 *.log
 
 # Runtime collector state
 data/collector_state/
+*.db-shm
+*.db-wal
 
 # OS files
 .DS_Store

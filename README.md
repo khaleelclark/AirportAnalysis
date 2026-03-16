@@ -27,6 +27,15 @@ The hypothesis view also highlights when DEN is handling higher load but still d
 - ADSB.lol (live traffic)
 - AirLabs Delay API
 
+## Shared Dataset
+
+This repository intentionally includes a snapshot of `data/aviation.db` so others can open the dashboard and inspect recent data without collecting their own first.
+
+- `data/aviation.db` is a read-only snapshot of public operational data for MCO and DEN.
+- No API keys are stored in the database snapshot or the repo.
+- To refresh or extend the dataset, create a local `.env` from `.env.example` and run the collectors yourself.
+- Runtime logs and IDE/project metadata are intentionally excluded from version control.
+
 ## Project Structure
 
 - `dashboard/app.py`: Streamlit dashboard
