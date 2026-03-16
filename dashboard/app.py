@@ -5,7 +5,7 @@ from datetime import datetime
 import subprocess
 import sys
 from typing import Any, cast
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 import plotly.express as px
@@ -192,7 +192,21 @@ with overview_tab:
         return "Low"
     
     
-    LOCAL_TZ = datetime.now().astimezone().tzinfo
+    def get_viewer_timezone() -> tuple[Any, str]:
+        context = getattr(st, "context", None)
+        timezone_name = getattr(context, "timezone", None) if context is not None else None
+        if timezone_name:
+            try:
+                return ZoneInfo(str(timezone_name)), str(timezone_name)
+            except ZoneInfoNotFoundError:
+                pass
+        fallback_tz = datetime.now().astimezone().tzinfo
+        if fallback_tz is None:
+            fallback_tz = ZoneInfo("UTC")
+        fallback_label = str(fallback_tz)
+        return fallback_tz, fallback_label
+
+    LOCAL_TZ, LOCAL_TZ_LABEL = get_viewer_timezone()
     OPERATIONAL_DAY_START_HOUR = 7
     AIRPORT_TIMEZONES = {
         "MCO": ZoneInfo("America/New_York"),
@@ -522,7 +536,10 @@ with overview_tab:
             format_local_snapshot_time(last["last_airline_delay"]),
         )
     
-    st.caption("Dashboard reads directly from your local SQLite DB. If cron is running, these timestamps should keep updating.")
+    st.caption(
+        f"Times are shown in your browser timezone ({LOCAL_TZ_LABEL}) when available. "
+        "Airport-to-airport comparisons still align by each airport's local clock."
+    )
     
     top_controls_left, top_controls_right = st.columns([1, 1])
     with top_controls_left:
@@ -945,10 +962,7 @@ with overview_tab:
         
         for card_index, airport_row in enumerate(latest_by_airport_rows):
             card_airport_code = str(airport_row["airport_code"])
-            collected_local = format_snapshot_time_for_airport(
-                pd.to_datetime(airport_row["collected_at"], utc=True),
-                card_airport_code,
-            )
+            collected_local = format_local_snapshot_time(pd.to_datetime(airport_row["collected_at"], utc=True))
             traffic_row = traffic_latest_map.get(card_airport_code)
             airline_row = airline_severity_map.get(card_airport_code)
             airline_range_row = airline_range_map.get(card_airport_code)
@@ -959,7 +973,7 @@ with overview_tab:
             )
             with card_cols[card_index]:
                 st.markdown("<div style='padding: 0 12px;'>", unsafe_allow_html=True)
-                st.write(f"**Snapshot Time (Local):** {collected_local}")
+                st.write(f"**Snapshot Time (Your Time):** {collected_local}")
                 st.markdown("#### Snapshot Metrics")
                 st.metric(
                     label=f"{airport_row['airport_code']} Airline Delay Severity Index",
@@ -1003,8 +1017,8 @@ with overview_tab:
                         value=format_minutes_hr_min(airline_max_today),
                     )
                 st.write(
-                    f"**FAA Update Time (Local):** "
-                    f"{format_faa_update_time_for_airport(airport_row.get('faa_update_time'), card_airport_code)}"
+                    f"**FAA Update Time (Your Time):** "
+                    f"{format_faa_update_time_local(airport_row.get('faa_update_time'))}"
                 )
                 st.caption("[View FAA NASStatus details](https://nasstatus.faa.gov/)")
                 st.write(f"**FAA Status:** {airport_row.get('faa_status', '—') if airport_row.get('faa_status') else '—'}")
@@ -1017,11 +1031,8 @@ with overview_tab:
                 if airline_row is None:
                     st.write("**Airline Snapshot:** N/A")
                 else:
-                    airline_time = format_snapshot_time_for_airport(
-                        pd.to_datetime(airline_row["snapshot_time"], utc=True),
-                        card_airport_code,
-                    )
-                    st.write(f"**Airline Snapshot Time (Local):** {airline_time}")
+                    airline_time = format_local_snapshot_time(pd.to_datetime(airline_row["snapshot_time"], utc=True))
+                    st.write(f"**Airline Snapshot Time (Your Time):** {airline_time}")
                     range_cancel_text = "N/A"
                     if airline_range_row is not None:
                         range_cancel_text = f"{airline_range_row['cancel_rate_percent']}%"
@@ -1036,11 +1047,8 @@ with overview_tab:
                 if traffic_row is None:
                     st.write("No traffic snapshot available for this airport in selected time range.")
                 else:
-                    traffic_time_local = format_snapshot_time_for_airport(
-                        pd.to_datetime(traffic_row["collected_at"], utc=True),
-                        card_airport_code,
-                    )
-                    st.write(f"**Traffic Snapshot Time (Local):** {traffic_time_local}")
+                    traffic_time_local = format_local_snapshot_time(pd.to_datetime(traffic_row["collected_at"], utc=True))
+                    st.write(f"**Traffic Snapshot Time (Your Time):** {traffic_time_local}")
                     lc1, lc2, lc3 = st.columns(3)
                     with lc1:
                         st.metric("In Airspace", int(traffic_row["aircraft_count"]) if pd.notna(traffic_row.get("aircraft_count")) else "—")
