@@ -32,6 +32,7 @@ The hypothesis view also highlights when DEN is handling higher load but still d
 This repository intentionally includes a snapshot of `data/aviation.db` so others can open the dashboard and inspect recent data without collecting their own first.
 
 - `data/aviation.db` is a read-only snapshot of public operational data for MCO and DEN.
+- `data/aviation.db` is stored in Git LFS, so clones need Git LFS installed before checkout or pull.
 - No API keys are stored in the database snapshot or the repo.
 - To refresh or extend the dataset, create a local `.env` from `.env.example` and run the collectors yourself.
 - Runtime logs and IDE/project metadata are intentionally excluded from version control.
@@ -54,6 +55,7 @@ This repository intentionally includes a snapshot of `data/aviation.db` so other
 ### Linux / macOS
 
 ```bash
+git lfs install
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -93,6 +95,7 @@ Start dashboard:
 ### Windows (PowerShell)
 
 ```powershell
+git lfs install
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
