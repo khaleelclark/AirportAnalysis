@@ -162,6 +162,7 @@ Current tests are deterministic parser/scoring checks and do not call live APIs.
 */10 * * * * /path/to/project/scripts/collect_traffic.sh
 */10 * * * * /path/to/project/scripts/collect_delays.sh
 */10 * * * * /path/to/project/scripts/collect_flights.sh
+15 0 * * * /path/to/project/scripts/commit_aviation_db.sh
 ```
 
 - Traffic and FAA: every 10 minutes
@@ -169,8 +170,30 @@ Current tests are deterministic parser/scoring checks and do not call live APIs.
   - each airport's local 9 AM-11 PM window
   - strict 2-hour minimum between AirLabs API call attempts per airport
 - Manual dashboard sync can force an immediate AirLabs call for on-demand refresh
+- DB commit script: once per day; stages only `data/aviation.db`, creates a `Data update` commit only if that file changed, and pushes by default
 
 ## Troubleshooting
+
+### Daily DB commit automation
+
+Use the included commit helper for a cron-safe daily snapshot commit:
+
+```bash
+chmod +x scripts/commit_aviation_db.sh
+crontab -e
+```
+
+Example cron entry:
+
+```cron
+15 0 * * * cd /home/your-name/Projects/CapstoneProject && /home/your-name/Projects/CapstoneProject/scripts/commit_aviation_db.sh
+```
+
+- Default commit message is `Data update` to match the existing history.
+- The script skips clean runs, so it will not create empty commits.
+- It pushes to the current branch's `origin` by default.
+- Set `PUSH_CHANGES=0` in cron if you only want a local commit.
+- Logs are written to `logs/db_commit.log`.
 
 ### Dashboard shows no data
 
