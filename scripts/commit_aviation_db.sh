@@ -11,39 +11,44 @@ REMOTE_NAME="${REMOTE_NAME:-origin}"
 BRANCH_NAME="${BRANCH_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
 
 mkdir -p logs
+LOG_PATH="$ROOT_DIR/logs/db_commit.log"
+
+log() {
+  echo "$1" | tee -a "$LOG_PATH"
+}
 
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$ROOT_DIR/logs/commit_aviation_db.lock"
   if ! flock -n 9; then
-    echo "=== DB COMMIT $(date -u) === skipped (lock held)" >> "$ROOT_DIR/logs/db_commit.log"
+    log "=== DB COMMIT $(date -u) === skipped (lock held)"
     exit 0
   fi
 fi
 
 {
-  echo "=== DB COMMIT $(date -u) ==="
+  log "=== DB COMMIT $(date -u) ==="
 
   if [[ ! -f "$DB_PATH" ]]; then
-    echo "skipped: $DB_PATH not found"
+    log "skipped: $DB_PATH not found"
     exit 0
   fi
 
   git add "$DB_PATH"
 
   if git diff --cached --quiet -- "$DB_PATH"; then
-    echo "skipped: no staged changes for $DB_PATH"
+    log "skipped: no staged changes for $DB_PATH"
     exit 0
   fi
 
-  git commit -m "$COMMIT_MESSAGE" -- "$DB_PATH"
-  echo "committed: $COMMIT_MESSAGE"
+  git commit -m "$COMMIT_MESSAGE" -- "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+  log "committed: $COMMIT_MESSAGE"
 
   if [[ "$PUSH_CHANGES" == "1" ]]; then
-    git push "$REMOTE_NAME" "$BRANCH_NAME"
-    echo "pushed: $REMOTE_NAME/$BRANCH_NAME"
+    git push "$REMOTE_NAME" "$BRANCH_NAME" 2>&1 | tee -a "$LOG_PATH"
+    log "pushed: $REMOTE_NAME/$BRANCH_NAME"
   else
-    echo "push skipped: PUSH_CHANGES=$PUSH_CHANGES"
+    log "push skipped: PUSH_CHANGES=$PUSH_CHANGES"
   fi
 
-  echo ""
-} >> "$ROOT_DIR/logs/db_commit.log" 2>&1
+  log ""
+}
