@@ -31,7 +31,7 @@ This project tests whether MCO has disproportionately worse operational outcomes
 
 ### How The Dashboard Tests The Hypothesis
 - **Decision Summary:** uses two primary core metrics:
-  FAA downtime minutes per 100 traffic load (operational core) and Airline Delay Severity (passenger core).
+  FAA downtime minutes per 100 live aircraft (operational core) and Airline Delay Severity (passenger core).
 - **Top-Line Verdict:** combines both core metrics with reliability weighting and confidence tags.
 - **Supporting Context:** keeps secondary metrics and drill-down details without driving the headline verdict.
 - **DEN Outperformance Callouts:** explicitly flags when DEN carries higher load but still shows better delay efficiency overall and by day.
@@ -45,151 +45,150 @@ This project tests whether MCO has disproportionately worse operational outcomes
 
 CALC_MARKDOWN = """
 ### Calculation Details
-This page documents how dashboard metrics are computed from live data.
+This tab explains where the numbers on the main dashboard come from, in plain language.
 
-### Dashboard Section Guide
-- **Last Synced (FAA Delays / Traffic / Airline Delay)**:
-  Shows the most recent timestamp ingested for each data source.
-- **At A Glance**:
-  Quick comparison of which airport currently leads key risk indicators.
-- **Latest Airport Snapshot**:
-  Per-airport live snapshot of severity, load, stress, longest delays, and FAA status.
-- **Hypothesis Check**:
-  Decision Summary (two primary metrics + top-line verdict) plus Supporting Context.
-- **FAA Status History**:
-  Restriction summary cards, daily restriction rate trend, daily peak active restrictions, and optional status-category breakdown.
-- **Airline Delay Impact**:
-  Daily passenger-facing trend view from AirLabs delays, cancellations, and diversions.
-- **Trend Lines**:
-  Rolling delay and rolling operational stress trends over time.
-- **Traffic Load Vs Delay Severity**:
-  Raw scatter plus same-load band comparison to judge fairness at similar traffic.
-- **Delay Timing Breakdown**:
-  Combined weekday comparison of overall delay (FAA + airline) for passenger-centered timing context.
+### What appears on the main dashboard
+- **Last Synced**: The most recent update time for FAA data, traffic data, and airline data.
+- **At A Glance**: A quick summary of which airport currently looks worse on a few headline measures.
+- **Latest Airport Snapshot**: The newest side-by-side view of MCO and DEN.
+- **Hypothesis Check**: The main comparison section that asks whether MCO is doing worse than DEN after adjusting for busyness.
+- **FAA Status History**: How often FAA restrictions show up and how strong they are over time.
+- **Airline Delay Impact**: Passenger-facing delay, cancellation, and longest-delay trends.
+- **Delay Timing Breakdown**: Which days of the week tend to have worse overall delays.
 
-### 1) Latest Airport Snapshot Metrics
-FAA Delay Severity Index comes from FAA NASStatus event types:
-- `0`: No active FAA restriction
-- `2`: Arrival/Departure delay program
-- `3`: Ground Delay Program
-- `4`: Ground Stop
-- `5`: Airport closure
-If multiple FAA events exist at once, the index uses the **maximum** severity.
+### Last Synced
+These timestamps are not calculated scores. They simply show the latest time the dashboard successfully stored data from each source.
 
-Airline Delay Severity Index (0-5) is:
-- `average_delay_min = mean(max(delay_minutes, 0))`
-- `cancel_rate = cancelled_flights / total_flights`
-- `divert_rate = diverted_flights / total_flights`
-- `airline_severity = min(min(average_delay_min / 20, 3.0) + min(cancel_rate * 4.0, 1.5) + min(divert_rate * 2.0, 0.5), 5.0)`
+### At A Glance
+This row is a quick comparison, not a separate model.
+- **Highest Operational Stress**: Which airport currently has the higher Operational Stress Score.
+- **Highest Airline Delay Severity**: Which airport currently has the higher airline severity score.
+- **Airport Traffic Load Difference**: The difference in live aircraft count between the two airports.
+- **Longest Recorded Delay**: Which airport has the biggest delay seen in the collected history, using either airline delay data or FAA delay ranges.
 
-Traffic and stress metrics:
-- `traffic_load_effective = aircraft_count` (fallback: `dep_total + arr_total`)
-- `operational_stress_score = (1 + delay_severity_index) * (traffic_load_effective / 100)`
+### Latest Airport Snapshot
+This section uses the newest available snapshot for each airport.
 
-Longest delay metrics:
-- **Longest Airline Delay Today**: max flight `delay_minutes` today (local date).
-- **Longest Recorded Delay (Any Source)**: max of:
-  airline longest delay,
-  FAA event delay range (max delay, fallback to min delay),
-  across the full collected history.
+**FAA Delay Severity**
+- This is based on the FAA's active restriction level.
+- `0` means no active FAA restriction.
+- Higher numbers mean more serious restrictions, such as delay programs, ground stops, or closures.
+- If more than one FAA restriction is active at the same time, the dashboard uses the most severe one.
 
-### 2) Hypothesis Check Ratios
-The hypothesis section compares MCO vs DEN as:
-- `ratio = metric_at_MCO / metric_at_DEN`
-- `ratio > 1.0`: supports "MCO worse" for that metric
-- `ratio <= 1.0`: does not support "MCO worse" for that metric
-- Cross-airport comparisons use shared airport-local clock slots
-  (for example, DEN 9 AM is compared against MCO 9 AM).
-- Verdicts are gated by minimum sample thresholds and include confidence tags.
-- Core ratio confidence uses bootstrap 95% confidence intervals.
-- FAA downtime normalization uses a traffic-load floor to reduce low-load blowups.
-- Combined core uses reliability-weighted evidence (not an equal average).
+**Airline Delay Severity Index**
+- This is a `0` to `5` score built from three airline signals:
+  average delay, cancellation rate, and diversion rate.
+- Higher means worse for travelers.
+- In simple terms: more delayed flights, more cancellations, and more diversions push the score up.
 
-Primary core metrics:
-- `operational_core = ratio(downtime_per_100_load)`
-- `airline_core = ratio(average_airline_severity)`
-- `combined_core_weighted = weighted_mean(operational_core, airline_core)` using available evidence sample sizes
-Top-line verdict is based on the weighted core and confidence gates.
-Secondary metrics are shown as supporting context only.
-Additional context callouts are shown when DEN is busier but still more efficient:
-- Snapshot-average callout: `DEN avg load >= 1.15 * MCO avg load` and `DEN downtime_per_100_load < MCO downtime_per_100_load`
-- Daily callout: by local date means, DEN busier (`>= 1.05 * MCO load`) and still lower downtime-per-100-load
+**Operational Stress Score**
+- This combines FAA delay severity with live traffic pressure.
+- Plain-language formula:
+  `(1 + FAA Delay Severity) x live aircraft count`, scaled down for readability.
+- The score rises when the airport is both busy and under stronger FAA restrictions.
 
-### 3) FAA Status History
-Built from FAA snapshots in the selected range:
-- Restriction Snapshot Rate: `delayed_snapshots / snapshots`
-- Most Common Restriction: most frequent non-empty/non-"no active restriction" status string
-- Peak Active Restrictions: max `faa_event_count` seen in range
-- Daily FAA Restriction Rate trend and Daily Peak Active Restrictions trend
-- Optional status category breakdown in an expander
+**Other snapshot numbers**
+- **Active FAA Restrictions**: How many FAA restriction records are active in that snapshot.
+- **Longest Airline Delay Today**: The single longest airline delay seen today.
+- **Longest Recorded Delay (Any Source)**: The biggest delay seen in the full collected history, from either airline data or FAA delay ranges.
+- **Current Operational Load**: Live aircraft counts shown as In Airspace, Airborne, and On Ground.
 
-### 4) Airline Delay Impact
-Uses flight-level rows in selected range:
-- Snapshot-level airline severity is computed first, then summarized by operational day
-- Daily Airline Delay Severity Index: mean of snapshot severities per day
-- Daily Longest Airline Delay: robust daily longest-delay trend using the 90th percentile of snapshot max delays (label simplified in UI)
-- Daily Airline Cancellation Rate Comparison
-- Longest Delay Today Comparison (today airline max vs all-time any-source max)
+### Hypothesis Check
+This is the most important part of the dashboard.
+It compares MCO and DEN using matching local time periods, so the comparison is more fair.
+For example, it compares MCO at 9 AM with DEN at 9 AM rather than mixing very different times of day.
 
-### 5) Trend Lines
-Rolling time-series by airport:
-- Delay Severity Index rolling average
-- Operational Stress Score rolling average
+**The two main comparison numbers**
+- **Operational Core (MCO/DEN)**:
+  FAA downtime minutes per 100 live aircraft.
+  Here, **traffic load** means the number of aircraft around the airport.
+  This asks: for every 100 aircraft, which airport loses more time to FAA-related disruption?
+- **Passenger Core (MCO/DEN)**:
+  Airline Delay Severity.
+  This asks: which airport is producing worse traveler-facing airline outcomes?
 
-### 6) Traffic Load Vs Delay Severity
-Two views in selected range:
-- Raw snapshot scatter (`traffic_load_effective` vs `delay_index_best`)
-- Same-load bucket comparison (average delay by load band)
+**How to read the ratio**
+- A value above `1.0` means MCO is worse on that measure.
+- A value below `1.0` means DEN is worse on that measure.
+- A value close to `1.0` means they are performing similarly.
 
-### 7) Delay Timing Breakdown
-Timing is intentionally simplified:
-- FAA and airline delay rows are combined into one passenger-centric delay signal
-- One chart is shown: Average Overall Delay by Day of Week (airport-local)
-- The previous half-hour timing chart was removed to reduce skew/noise and improve readability
+**Top-Line Verdict**
+- The dashboard only gives a verdict when there is enough usable data.
+- It combines the operational result and the passenger result.
+- If there is not enough reliable data, the verdict is withheld instead of forcing an answer.
 
-### Data Collection Cadence
-- FAA Delays: every 10 minutes
-- Traffic: every 10 minutes
-- Airline collector runs every 10 minutes but only calls AirLabs per airport when:
-  - airport local time is between 9 AM and 11 PM
-  - at least 2 hours have elapsed since that airport's last AirLabs call attempt
-- Manual dashboard sync can bypass this AirLabs throttle/window for immediate on-demand refresh
+**Supporting Context**
+- This table gives extra detail behind the verdict, such as average live aircraft count, average FAA downtime, airline flight counts, average airline delay, and cancellation rate.
+- These numbers help explain the result, but they do not replace the main verdict.
+
+### FAA Status History
+This section looks only at FAA snapshots inside the selected time range.
+
+- **Restriction Snapshot Rate**:
+  The share of FAA snapshots that showed at least one active restriction.
+  Example: if 40 out of 100 snapshots had a restriction, the rate is 40%.
+- **Most Common Restriction**:
+  The FAA status message that appeared most often.
+- **Peak Active Restrictions**:
+  The highest number of active FAA restrictions seen at one time.
+- **Daily FAA Restriction Rate**:
+  For each day, the percent of snapshots that had an FAA restriction.
+- **Daily Peak Active FAA Restrictions**:
+  For each day, the highest number of active restrictions seen.
+
+### Airline Delay Impact
+This section looks at airline delay records inside the selected time range.
+
+- **Daily Airline Delay Severity Index**:
+  The average airline severity score for each day.
+- **Daily Longest Airline Delay**:
+  A daily longest-delay trend based on the higher end of delays seen that day, so one extreme outlier does not dominate the chart.
+- **Daily Airline Cancellation Rate Comparison**:
+  The percent of sampled flights that were marked cancelled each day.
+- **Longest Delay Today Comparison**:
+  Compares today's longest airline delay with the longest delay ever recorded in the collected history.
+
+### Delay Timing Breakdown
+This section combines FAA delay minutes and airline delay minutes into one simple timing view.
+
+- It groups delays by **day of week** using each airport's local time.
+- It then shows the **average overall delay** for each weekday.
+- This helps answer a simple question:
+  which days tend to be worse for delays overall?
+
+### Refresh timing
+- FAA data updates about every 10 minutes.
+- Traffic data updates about every 10 minutes.
+- Airline data is more limited and may update less often.
+- A manual sync can force a fresh airline pull, but normal airline calls are throttled to protect the API quota.
 """
 
 HOW_TO_READ_MARKDOWN = """
-- **Primary Question**: Is MCO performing worse than DEN after accounting for how busy each airport is?
-- **Delay Severity Index (FAA Operational)**: `0` means no active FAA restriction. Higher values mean more severe operational restrictions (ground delay, ground stop, closures).
-- **Airline Delay Severity Index (AirLabs)**: `0-5` index based on live airline delay minutes, cancellations, and diversions.
-- **Traffic Load**: Live aircraft count in airport airspace. This is the pressure/load signal.
-- **Operational Stress Score**: `(1 + Delay Severity Index) × Traffic Load` (scaled). Higher means heavier operational strain.
-- **Longest Delay Today Metrics**:
-  `Longest Airline Delay Today` comes from AirLabs flight delays.
-  `Longest Recorded Delay (Any Source)` takes the largest value seen in your full collected history,
-  across airline delays and FAA event delay ranges.
-- **FAA Status History**:
-  Shows FAA restriction summary cards, daily restriction-rate trend, daily peak active restrictions, and optional status-category breakdown.
-- **Airline Delay Impact**:
-  Shows daily airline severity, daily longest-delay trend, and daily cancellation rates.
-- **Hypothesis Check**:
-  Starts with a Decision Summary using two primary metrics:
-  FAA downtime-per-load (operational core) and airline delay severity (passenger core).
-  A top-line verdict is shown only when quality gates are met; otherwise it is withheld.
-  Secondary metrics are available in Supporting Context.
-- **Trend Lines**:
-  Shows rolling delay severity and rolling operational stress.
-- **Traffic Load Vs Delay Severity**:
-  Use raw scatter and same-load bands together to judge fairness at similar traffic levels.
-- **Delay Timing Breakdown**:
-  Uses one combined FAA+airline weekday chart for easier comparison and less noise.
-- **How To Interpret Quickly**:
-  For operational evidence, focus on **FAA downtime minutes per 100 traffic load** and its confidence label.
-  For passenger-facing evidence, focus on **Airline Delay Severity** and its confidence label.
-  If only one side supports the hypothesis, treat the result as mixed rather than definitive.
-- **Cadence**:
-  FAA Delays every 10 minutes, Traffic every 10 minutes.
-  Airline collector runs every 10 minutes but only calls AirLabs at 2-hour minimum intervals per airport
-  during each airport's local 9 AM to 11 PM window.
-  Manual sync can force AirLabs immediately; use that button sparingly to protect API quota.
-- **Important Limitation**:
-  One snapshot can be noisy. Use trend lines and repeated observations before drawing conclusions.
+This dashboard compares **MCO** and **DEN** to answer one simple question:
+Is Orlando having worse delay problems than Denver, even after accounting for how busy each airport is?
+
+**Start here**
+- **Decision Summary**: This is the quickest read. It gives the main comparison and only shows a verdict when there is enough data.
+- **Latest Airport Snapshot**: Shows what is happening right now at each airport.
+- **FAA Status History** and **Airline Delay Impact**: These are more useful than a single snapshot if you want the bigger picture.
+
+**What the main scores mean**
+- **FAA Delay Severity**: How serious the FAA's current restrictions are. Higher means worse.
+- **Airline Delay Severity**: A simple score based on delays, cancellations, and diversions. Higher means worse for travelers.
+- **Operational Stress Score**: A combined pressure score based on airport busyness and FAA delay conditions. Higher means more strain.
+
+**How to read the rest**
+- **FAA Status History**: Shows how often each airport has FAA restrictions and how severe they are over time.
+- **Airline Delay Impact**: Shows passenger-facing problems like longer delays and more cancellations.
+- **Delay Timing Breakdown**: Shows which days tend to be worse.
+
+**Quick rule of thumb**
+- If **FAA downtime per 100 live aircraft** is higher, that airport is handling operations less efficiently.
+- If **Airline Delay Severity** is higher, travelers are seeing worse outcomes.
+- If both point in the same direction, that is stronger evidence. If they disagree, the result is mixed.
+
+**Keep in mind**
+- FAA and traffic data update about every 10 minutes.
+- Airline data is slower and may refresh less often.
+- One snapshot can be noisy, so trends matter more than any single moment.
 """

@@ -980,17 +980,10 @@ with overview_tab:
                     value="N/A" if airline_row is None else airline_row["score"],
                 )
 
-                m21, m22 = st.columns(2)
-                with m21:
-                    st.metric(
-                        label=f"{airport_row['airport_code']} Traffic Load (Live Aircraft)",
-                        value=int(airport_row["traffic_load_effective"]) if pd.notna(airport_row["traffic_load_effective"]) else "N/A",
-                    )
-                with m22:
-                    st.metric(
-                        label=f"{airport_row['airport_code']} Operational Stress Score",
-                        value="—" if pd.isna(airport_row["operational_stress_score"]) else round(float(airport_row["operational_stress_score"]), 3),
-                    )
+                st.metric(
+                    label=f"{airport_row['airport_code']} Operational Stress Score",
+                    value="—" if pd.isna(airport_row["operational_stress_score"]) else round(float(airport_row["operational_stress_score"]), 3),
+                )
 
                 st.markdown("#### Additional Metrics")
                 a11, a12 = st.columns(2)
@@ -1037,8 +1030,7 @@ with overview_tab:
                     if airline_range_row is not None:
                         range_cancel_text = f"{airline_range_row['cancel_rate_percent']}%"
                     st.write(
-                        f"**Airline Inputs:** Flights {airline_row['flights_n']}, "
-                        f"Average Delay {airline_row['average_delay_min']} min, "
+                        f"**Airline Inputs:** Average Delay {airline_row['average_delay_min']} min, "
                         f"Cancelled {airline_row['cancel_rate_percent']}% (Latest Snapshot), "
                         f"Cancelled {range_cancel_text} (Selected Time Range), "
                         f"Diverted {airline_row['divert_rate_percent']}%"
@@ -1248,9 +1240,9 @@ with overview_tab:
                 and den_delay_per_load < mco_delay_per_load
             ):
                 denver_load_outperformance_note = (
-                    f"DEN is handling higher average traffic load ({den_load:.1f} vs {mco_load:.1f}) "
+                    f"DEN is handling a higher average live aircraft count ({den_load:.1f} vs {mco_load:.1f}) "
                     f"while maintaining better FAA downtime efficiency "
-                    f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} downtime minutes per 100 load)."
+                    f"({den_delay_per_load:.2f} vs {mco_delay_per_load:.2f} downtime minutes per 100 aircraft)."
                 )
 
         # Daily-level outperformance signal: on days when DEN is busier than MCO,
@@ -1287,7 +1279,7 @@ with overview_tab:
                 if busier_days > 0:
                     denver_daily_outperformance_note = (
                         f"Daily view: DEN was busier than MCO on {busier_days} day(s) in this range and "
-                        f"still had better downtime-per-100-load on {better_when_busier_days} of those day(s)."
+                        f"still had better FAA downtime per 100 aircraft on {better_when_busier_days} of those day(s)."
                     )
 
         def metric_ratio(metric_key: str) -> float | None:
@@ -1320,7 +1312,7 @@ with overview_tab:
             if operational_core_ratio is not None:
                 op_text = f"{operational_core_ratio:.2f}"
             st.metric("Operational Core (MCO/DEN)", op_text)
-            st.caption("FAA downtime minutes per 100 traffic load")
+            st.caption("FAA downtime minutes per 100 live aircraft around the airport")
             st.caption(f"Confidence: **{operational_conf}**")
         with d2:
             air_text = "Withheld"
@@ -1486,7 +1478,8 @@ with overview_tab:
             st.markdown("#### FAA Restriction Summary")
             summary_cols = st.columns(2)
             summary_by_airport = {str(r["airport_code"]): r for r in records(faa_summary)}
-            for summary_index, airport in enumerate(selected_airports):
+            summary_airports = [airport for airport in ["DEN", "MCO"] if airport in selected_airports]
+            for summary_index, airport in enumerate(summary_airports):
                 rec = summary_by_airport.get(airport)
                 with summary_cols[summary_index]:
                     st.markdown(f"**{airport}**")
@@ -1797,7 +1790,8 @@ with overview_tab:
                 st.plotly_chart(cancel_rate_chart, width="stretch")
 
                 today_rows = []
-                for airport in selected_airports:
+                today_airports = [airport for airport in ["DEN", "MCO"] if airport in selected_airports]
+                for airport in today_airports:
                     airline_today = longest_airline_today_map.get(airport)
                     any_recorded = max(
                         [v for v in [longest_airline_all_time_map.get(airport), longest_faa_all_time_map.get(airport)] if v is not None],
@@ -1825,6 +1819,7 @@ with overview_tab:
                             "delay_hours": "Delay (Hours)",
                             "metric": "Metric",
                         },
+                        category_orders={"airport_code": today_airports},
                     )
                     today_compare_chart.update_traces(
                         textposition="outside",
