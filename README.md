@@ -1,75 +1,141 @@
 # MCO vs DEN Airport Operations Dashboard
 
-Capstone project comparing Orlando (MCO) vs Denver (DEN) with live operational restrictions, live traffic load, and airline delay impact.
+Streamlit dashboard and data pipeline for comparing Orlando International (`MCO`) and Denver International (`DEN`) using:
 
-## Overview
+- FAA restriction data
+- live airspace traffic snapshots
+- airline delay, cancellation, and diversion data
 
-This project tests a practical hypothesis:
+The main question is simple:
 
-> Is MCO performing worse than DEN in ways not fully explained by traffic volume alone?
+> Is MCO performing worse than DEN after accounting for how busy each airport is?
 
-To evaluate that, the pipeline continuously collects and visualizes:
-- FAA operational restrictions (delay programs, ground stops, closures)
-- Live airspace traffic snapshots near each airport
-- Flight-level airline delay/cancel/diversion signals
+This README is written for someone who needs to clone, run, and deploy the project without reverse-engineering the codebase first.
 
-The hypothesis view also highlights when DEN is handling higher load but still delivering better delay efficiency.
+## What This Repository Contains
 
-## Tech Stack
-
-- Python 3.12
-- Streamlit + Plotly + Pandas
-- SQLite (`data/aviation.db`)
-
-## Data Sources
-
-- FAA NASStatus API
-- ADSB.lol (live traffic)
-- AirLabs Delay API
-
-## Shared Dataset
-
-This repository intentionally includes a snapshot of `data/aviation.db` so others can open the dashboard and inspect recent data without collecting their own first.
-
-- `data/aviation.db` is a read-only snapshot of public operational data for MCO and DEN.
-- `data/aviation.db` is stored in Git LFS, so clones need Git LFS installed before checkout or pull.
-- No API keys are stored in the database snapshot or the repo.
-- To refresh or extend the dataset, create a local `.env` from `.env.example` and run the collectors yourself.
-- Runtime logs and IDE/project metadata are intentionally excluded from version control.
-
-## Project Structure
-
-- `dashboard/app.py`: Streamlit dashboard
-- `dashboard/content.py`: dashboard tab/help copy separated from app logic
-- `src/db.py`: schema/bootstrap
+- `dashboard/app.py`: main Streamlit app
+- `dashboard/content.py`: help/about/calculation copy used by the dashboard
+- `src/db.py`: SQLite schema bootstrap
 - `src/collect_delays.py`: FAA collector
-- `src/collect_traffic.py`: traffic collector
+- `src/collect_traffic.py`: ADSB.lol traffic collector
 - `src/collect_flights.py`: AirLabs collector
-- `migrations/*.sql`: schema updates
-- `scripts/*.sh`: scheduled collector wrappers
-- `tests/test_basic.py`: parser/scoring unit tests
-- `API.md`: source-to-storage API contract and handoff spec
+- `migrations/*.sql`: required schema migrations
+- `scripts/*.sh`: cron-friendly collector wrappers
+- `data/aviation.db`: included snapshot database
+- `data/collector_state/`: AirLabs call-throttle state files
+- `logs/`: collector and DB commit logs
 
-## Quick Start
+## Runtime Model
 
-### Linux / macOS
+This project is designed for a small self-hosted deployment on a Linux VM, VPS, or always-on machine.
+
+- The app reads from a local SQLite database at `data/aviation.db`.
+- Collectors write into that same database on a schedule.
+- The AirLabs collector also writes throttle state to `data/collector_state/`.
+- Logs are written to `logs/`.
+- The repository includes a database snapshot, so the dashboard can open immediately even before you collect fresh data.
+
+Important deployment implication:
+
+- the deployment target must have persistent writable storage
+- the app and collectors should run from the repository root
+- if you deploy multiple app instances against the same SQLite file, you are adding avoidable complexity
+
+## Requirements
+
+- Python `3.12`
+- Git
+- Git LFS
+- SQLite CLI
+
+Python dependencies are listed in `requirements.txt`:
+
+- `requests`
+- `pandas`
+- `numpy`
+- `streamlit`
+- `plotly`
+- `python-dotenv`
+- `pytest`
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and set the values you need.
+
+Required for airline collection:
+
+```env
+AIRLABS_API_KEY=your_airlabs_api_key_here
+```
+
+Useful defaults already supported by the code:
+
+```env
+AIRLABS_AIRPORTS=MCO,DEN
+AIRLABS_BASE_URL=https://airlabs.co/api/v9/delays
+AIRLABS_TIMEOUT_SECONDS=30
+AIRLABS_REQUEST_PAUSE_SECONDS=0.5
+AIRLABS_LIMIT=100
+ADSBLOL_URL_TEMPLATE=https://api.adsb.lol/v2/lat/{lat}/lon/{lon}/dist/{dist_nm}
+```
+
+The AirLabs collector also supports these optional controls:
+
+- `AIRLABS_LOCAL_START_HOUR`
+- `AIRLABS_LOCAL_END_HOUR`
+- `AIRLABS_COLLECTION_INTERVAL_MINUTES`
+- `AIRLABS_STATE_DIR`
+- `AIRLABS_FORCE_SYNC`
+
+Notes:
+
+- FAA and ADSB collection do not require API keys for the current endpoints.
+- If `AIRLABS_API_KEY` is missing, `src/collect_flights.py` will fail.
+- `AIRLABS_FORCE_SYNC=1` bypasses the normal local-time and interval gate for manual refreshes.
+
+## Local Setup
+
+### 1. Clone the repository
 
 ```bash
+git clone <your-repo-url>
+cd CapstoneProject
 git lfs install
-python3 -m venv .venv
+git lfs pull
+```
+
+### 2. Create a virtual environment
+
+Linux/macOS:
+
+```bash
+python3.12 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Configure environment variables
+
+```bash
 cp .env.example .env
 ```
 
-Set your AirLabs key in `.env`:
+Then set `AIRLABS_API_KEY` in `.env`.
 
-```env
-AIRLABS_API_KEY=your_key_here
-AIRLABS_AIRPORTS=MCO,DEN
-```
+### 4. Initialize the database
 
-Initialize DB:
+Run these commands from the repository root:
 
 ```bash
 .venv/bin/python src/db.py
@@ -78,7 +144,9 @@ sqlite3 data/aviation.db ".read migrations/003_provider_source_schema.sql"
 sqlite3 data/aviation.db ".read migrations/004_add_delay_legacy_columns.sql"
 ```
 
-Run collectors once:
+If you are on Windows, use the equivalent Python path and an installed `sqlite3` CLI.
+
+### 5. Run the collectors once
 
 ```bash
 .venv/bin/python src/collect_delays.py
@@ -86,141 +154,86 @@ Run collectors once:
 .venv/bin/python src/collect_flights.py
 ```
 
-Start dashboard:
+### 6. Start the dashboard
 
 ```bash
 .venv/bin/streamlit run dashboard/app.py
 ```
 
-### Windows (PowerShell)
+Then open the local Streamlit URL shown in the terminal.
 
-```powershell
-git lfs install
-py -3 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env
-```
+## Deployment Checklist
 
-Then run equivalent commands with `.venv\Scripts\python` and `.venv\Scripts\streamlit`.
+Use this checklist for a real deployment:
 
-## Dashboard Sections
+1. Clone the repo with Git LFS enabled.
+2. Create `.venv` and install dependencies.
+3. Create `.env` and set `AIRLABS_API_KEY`.
+4. Initialize `data/aviation.db` and apply all migrations.
+5. Confirm the following paths are writable:
+   `data/`, `data/collector_state/`, and `logs/`
+6. Run each collector once successfully.
+7. Start the Streamlit app bound to the server interface.
+8. Add cron entries for ongoing collection.
+9. Verify the dashboard shows fresh timestamps in `Last Synced`.
 
-- Dashboard Overview
-- About This Project
-- Calculation Details
+## Production Run Command
 
-### About This Project
-- States the central MCO vs DEN question and hypothesis.
-- Lists FAA, traffic, and AirLabs data sources.
-- Documents collection cadence and guardrails:
-  - FAA/Traffic: every 10 minutes
-  - AirLabs: strict per-airport 2-hour minimum call interval, only during each airport's local 9 AM-11 PM window
-- Notes readability-focused dashboard simplifications (daily-focused airline trends and a single combined weekday timing chart).
-
-### Calculation Details
-- Defines all core formulas (delay severity, airline severity, traffic load, operational stress).
-- Explains ratio logic in Hypothesis Check.
-- Confirms cross-airport hypothesis ratios are aligned by shared airport-local clock slots (for example, DEN 9 AM vs MCO 9 AM).
-- Uses FAA downtime impact as the operational core metric (`downtime_per_100_load`).
-- Applies minimum sample-size quality gates before showing verdicts.
-- Reports bootstrap 95% confidence intervals and Low/Medium/High confidence tags.
-- Uses reliability-weighted combined core evidence (not a simple equal average).
-- Uses a Decision Summary first (two primary metrics + top-line verdict), with secondary metrics kept in supporting context.
-- Documents DEN outperformance callouts when DEN carries higher load but remains more efficient.
-- FAA Status History now emphasizes:
-  - Restriction Snapshot Rate
-  - Most Common Restriction
-  - Peak Active Restrictions
-  - Daily restriction-rate and daily-peak charts
-- Airline Delay Impact now emphasizes daily views:
-  - Daily Airline Delay Severity Index
-  - Daily Longest Airline Delay (robustly summarized from snapshot maxima)
-  - Daily Airline Cancellation Rate Comparison
-- Delay Timing Breakdown now uses a single combined FAA+airline weekday chart (half-hour timing view removed for readability).
-
-### How To Read This Dashboard (inside Dashboard Overview)
-- Explains what each metric means and how to interpret comparisons.
-- Includes cadence notes so users do not misread stale timestamps as failed collection.
-- Notes that MCO vs DEN comparisons are made on matched airport-local time slots.
-- Notes that verdicts can be withheld if quality gates are not met.
-- Read Decision Summary first; use Supporting Context for drill-down.
-- Clarifies that manual sync can run collectors immediately and can force an on-demand AirLabs call.
-- Notes that the timing section is intentionally simplified to reduce skew/noise in interpretation.
-
-## Tests
+For a simple server deployment:
 
 ```bash
-.venv/bin/pytest -q
+.venv/bin/streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-Current tests are deterministic parser/scoring checks and do not call live APIs.
+Recommended:
 
-## Scheduling (Cron)
+- run this behind a reverse proxy if exposing it publicly
+- keep the working directory at the repository root
+- use a process manager such as `systemd`, `supervisord`, or your platform equivalent
+
+This repository does not currently include Docker files, systemd unit files, or infrastructure manifests. The app is still deployable as-is on a standard Linux host.
+
+## Scheduling Collectors
+
+The included shell scripts are cron-friendly and already:
+
+- `cd` into the repo root
+- activate `.venv`
+- create `logs/`
+- use `flock` when available to avoid overlapping runs
+
+Example cron:
 
 ```cron
-*/10 * * * * /path/to/project/scripts/collect_traffic.sh
 */10 * * * * /path/to/project/scripts/collect_delays.sh
+*/10 * * * * /path/to/project/scripts/collect_traffic.sh
 */10 * * * * /path/to/project/scripts/collect_flights.sh
 15 0 * * * /path/to/project/scripts/commit_aviation_db.sh
 ```
 
-- Traffic and FAA: every 10 minutes
-- AirLabs script: runs every 10 minutes, but collector self-gates to:
-  - each airport's local 9 AM-11 PM window
-  - strict 2-hour minimum between AirLabs API call attempts per airport
-- Manual dashboard sync can force an immediate AirLabs call for on-demand refresh
-- DB commit script: once per day; stages only `data/aviation.db`, creates a `Data update` commit only if that file changed, and pushes by default
+What these do:
 
-## Troubleshooting
+- FAA collector: every 10 minutes
+- Traffic collector: every 10 minutes
+- AirLabs wrapper: every 10 minutes, but the Python collector self-throttles by airport
+- DB commit script: once per day
 
-### Daily DB commit automation
+AirLabs throttle behavior:
 
-Use the included commit helper for a cron-safe daily snapshot commit:
+- only calls during each airport's local collection window
+- defaults to `9 AM` through `11 PM` local airport time
+- enforces a minimum `120` minutes between call attempts per airport
+- stores last-attempt state in `data/collector_state/`
 
-```bash
-chmod +x scripts/commit_aviation_db.sh
-crontab -e
-```
+## Database Notes
 
-Example cron entry:
+The repository includes `data/aviation.db` so the dashboard can render immediately.
 
-```cron
-15 0 * * * cd /home/your-name/Projects/CapstoneProject && /home/your-name/Projects/CapstoneProject/scripts/commit_aviation_db.sh
-```
+- No API keys are stored in the database.
+- The file is tracked with Git LFS.
+- You can keep the included snapshot, or replace it with a fresh local database.
 
-- Default commit message is `Data update` to match the existing history.
-- The script skips clean runs, so it will not create empty commits.
-- It pushes to the current branch's `origin` by default.
-- Set `PUSH_CHANGES=0` in cron if you only want a local commit.
-- Logs are written to `logs/db_commit.log`.
-
-### Dashboard shows no data
-
-- Run collectors manually at least once.
-- Confirm `data/aviation.db` exists and migrations were applied.
-
-### AirLabs collector fails
-
-- Confirm `AIRLABS_API_KEY` is set in `.env`.
-- Verify API quota/limits.
-
-### IDE shows stubborn pandas warnings
-
-PyCharm can produce false positives on heavy chained pandas expressions (for example DataFrame/Series overload confusion). Runtime checks are the source of truth here:
-
-```bash
-.venv/bin/python -m py_compile dashboard/app.py
-.venv/bin/pytest -q
-```
-
-## Known Limitations
-
-- FAA severity and airline delay severity measure different concepts and should be interpreted together.
-- Single snapshots are noisy; trends and repeated observations are more meaningful.
-- Upstream API payloads can change and may require parser maintenance.
-
-## Optional: Reset Database
+To rebuild from scratch:
 
 ```bash
 rm -f data/aviation.db
@@ -229,3 +242,88 @@ sqlite3 data/aviation.db ".read migrations/002_add_flight_snapshots.sql"
 sqlite3 data/aviation.db ".read migrations/003_provider_source_schema.sql"
 sqlite3 data/aviation.db ".read migrations/004_add_delay_legacy_columns.sql"
 ```
+
+## Testing
+
+Run the automated tests with:
+
+```bash
+.venv/bin/pytest -q
+```
+
+These tests cover parsing and scoring logic and do not hit live APIs.
+
+Useful smoke checks:
+
+```bash
+.venv/bin/python -m py_compile dashboard/app.py
+.venv/bin/python -m py_compile src/collect_delays.py
+.venv/bin/python -m py_compile src/collect_traffic.py
+.venv/bin/python -m py_compile src/collect_flights.py
+```
+
+## Common Operational Issues
+
+### Dashboard opens but data is stale
+
+- Check the `Last Synced` timestamps in the UI.
+- Verify cron is running.
+- Check `logs/delays.log`, `logs/traffic.log`, and `logs/flights.log`.
+
+### Flight collector fails
+
+- Confirm `AIRLABS_API_KEY` is set.
+- Check AirLabs quota and account limits.
+- Check `data/collector_state/` if calls appear to be throttled.
+
+### Dashboard shows no data
+
+- Confirm `data/aviation.db` exists.
+- Confirm all migrations were applied.
+- Run each collector manually once before blaming the dashboard.
+
+### Git clone is missing the DB snapshot
+
+- Install Git LFS.
+- Run `git lfs pull`.
+
+### Cron jobs work manually but fail on schedule
+
+- Use absolute paths in cron.
+- Make sure the scripts are executable:
+
+```bash
+chmod +x scripts/*.sh
+```
+
+- Make sure `.venv` exists on the deployed machine.
+
+## Dashboard Sections
+
+The UI currently contains:
+
+- `Dashboard Overview`
+- `About This Project`
+- `Calculation Details`
+
+The main dashboard includes:
+
+- `At A Glance`
+- `Latest Airport Snapshot`
+- `Hypothesis Check`
+- `FAA Status History`
+- `Airline Delay Impact`
+- `Delay Timing Breakdown`
+
+## Known Limitations
+
+- SQLite is simple and effective here, but it is not the right choice for multi-instance write-heavy deployment.
+- FAA severity and airline severity measure different things and should be interpreted together.
+- Single snapshots are noisy; trend sections matter more than a single point in time.
+- Upstream APIs may change shape and require collector maintenance.
+- The repository is self-host deployment ready, but it does not yet ship with container, proxy, or IaC assets.
+
+## Additional Documentation
+
+- `API.md`: source-to-storage contract and collector/storage details
+- `GUIDE.md`: project walkthrough and explanation material
